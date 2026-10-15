@@ -1,0 +1,9 @@
+import PortalLayout from "@/components/PortalLayout";
+
+export default function MemberLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <PortalLayout role="member">
+      {children}
+    </PortalLayout>
+  );
+}
