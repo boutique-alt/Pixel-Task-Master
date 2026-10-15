@@ -84,13 +84,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickFill = (demoName: string, demoPhone: string, demoPass: string) => {
-    setName(demoName);
-    setPhone(demoPhone);
-    setPassword(demoPass);
-    setErrorMsg("");
-  };
-
   const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotName.trim() || !forgotPhone.trim()) {
@@ -140,24 +133,18 @@ export default function LoginPage() {
           
           {/* Logo & Header */}
           <div className="text-center mb-6">
-            <div className="flex justify-center mb-4">
-              <div className="bg-[#0A192F] p-3 rounded-2xl shadow-sm inline-block">
+            <div className="flex justify-center mb-2">
+              <div className="bg-white border border-[#E3EAF5] px-5 py-2.5 rounded-2xl shadow-sm inline-block">
                 <Image
-                  src="/logo.png"
-                  alt="Pixel Solution"
+                  src="/brand-logo.png"
+                  alt="Pixel Task Master"
                   width={220}
-                  height={55}
-                  className="object-contain h-12 w-auto"
+                  height={60}
+                  className="object-contain h-14 w-auto"
                   priority
                 />
               </div>
             </div>
-            <h1 className="text-[22px] font-extrabold text-[#10254F] tracking-tight">
-              Pixel Task Master
-            </h1>
-            <p className="text-[13px] text-[#64748B] mt-1 font-medium">
-              Enter your Name, Phone & Password to log in
-            </p>
           </div>
 
           {/* Error Banner */}
@@ -266,49 +253,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Fill Pills */}
-          <div className="mt-6 pt-5 border-t border-[#E3EAF5]">
-            <p className="text-[11px] uppercase tracking-wider font-bold text-[#8292A6] mb-2.5 flex items-center gap-1.5">
-              <Sparkles size={13} className="text-[#1677FF]" />
-              <span>Quick Demo Logins (Click to autofill)</span>
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickFill("Admin", "9876543210", "admin")}
-                className="flex items-center justify-center gap-1.5 px-2.5 py-2 bg-[#0A192F]/5 hover:bg-[#0A192F]/10 rounded-xl text-[12px] font-bold text-[#0A192F] transition-colors border border-[#E3EAF5] cursor-pointer"
-                title="Login as Admin"
-              >
-                <ShieldCheck size={14} className="text-[#1677FF]" />
-                <span>Admin</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill("Rahim", "+880 1711-223344", "123")}
-                className="flex items-center justify-center gap-1.5 px-2.5 py-2 bg-blue-50 hover:bg-blue-100 rounded-xl text-[12px] font-bold text-[#1677FF] transition-colors border border-blue-200 cursor-pointer"
-                title="Login as Rahim (Member)"
-              >
-                <UserCheck size={14} />
-                <span>Rahim</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill("Karim", "+880 1811-556677", "123")}
-                className="flex items-center justify-center gap-1.5 px-2.5 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-xl text-[12px] font-bold text-[#10B981] transition-colors border border-emerald-200 cursor-pointer"
-                title="Login as Karim (Member)"
-              >
-                <UserCheck size={14} />
-                <span>Karim</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 text-center px-3 py-2.5 bg-[#F8FAFC] rounded-xl border border-[#E3EAF5]">
-            <p className="text-[11px] text-[#64748B] font-semibold flex items-center justify-center gap-1.5">
-              <ShieldCheck size={14} className="text-[#10B981] shrink-0" />
-              <span>Only members added by Admin can sign in. Self-registration is disabled.</span>
-            </p>
-          </div>
         </div>
       </div>
 

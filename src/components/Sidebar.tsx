@@ -65,8 +65,8 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
         <div className="px-5 pt-6 pb-3 relative z-10 flex items-center justify-between gap-2">
           <div className="flex-1 flex items-center justify-center bg-white px-3.5 py-2.5 sm:py-3 rounded-2xl shadow-sm">
             <Image 
-              src="/logo.png" 
-              alt="Pixel Solution" 
+              src="/brand-logo.png" 
+              alt="Pixel Task Master" 
               width={240} 
               height={60} 
               className="w-full h-auto object-contain max-h-[50px] sm:max-h-[56px]" 
