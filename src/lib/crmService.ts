@@ -6,6 +6,7 @@ import {
   LeaveTypeOption, 
   AttendanceRecord, 
   AuthorizedDevice, 
+  OfficeAttendanceConfig,
   HRNotice, 
   OfficeRule, 
   MemberBankDetail, 
@@ -177,6 +178,11 @@ export async function upsertAttendanceRecordDb(rec: AttendanceRecord) {
     admin_note: rec.adminNote || null,
   });
   if (error) console.error("upsertAttendanceRecordDb error:", error);
+}
+
+export async function deleteAttendanceRecordDb(id: string) {
+  const { error } = await supabase.from("attendance_records").delete().eq("id", id);
+  if (error) console.error("deleteAttendanceRecordDb error:", error);
 }
 
 // 5. Authorized Devices
@@ -393,12 +399,14 @@ export async function fetchOfficeRulesDb(): Promise<OfficeRule[] | null> {
     console.error("fetchOfficeRulesDb error:", error);
     return null;
   }
-  return data.map((d: any) => ({
-    id: d.id,
-    category: d.category,
-    title: d.title,
-    description: d.description,
-  }));
+  return data
+    .filter((d: any) => d.id !== "sys_attendance_config")
+    .map((d: any) => ({
+      id: d.id,
+      category: d.category,
+      title: d.title,
+      description: d.description,
+    }));
 }
 
 export async function upsertOfficeRuleDb(rule: OfficeRule) {
@@ -414,6 +422,37 @@ export async function upsertOfficeRuleDb(rule: OfficeRule) {
 export async function deleteOfficeRuleDb(id: string) {
   const { error } = await supabase.from("office_rules").delete().eq("id", id);
   if (error) console.error("deleteOfficeRuleDb error:", error);
+}
+
+// 9.1 Attendance Config Cloud Sync via office_rules
+export async function fetchAttendanceConfigDb(): Promise<OfficeAttendanceConfig | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("description")
+      .eq("id", "sys_attendance_config")
+      .maybeSingle();
+
+    if (error || !data || !data.description) return null;
+    return JSON.parse(data.description);
+  } catch (err) {
+    console.warn("fetchAttendanceConfigDb fallback:", err);
+    return null;
+  }
+}
+
+export async function upsertAttendanceConfigDb(config: OfficeAttendanceConfig) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: "sys_attendance_config",
+      category: "Timing & Attendance",
+      title: "AttendanceConfig",
+      description: JSON.stringify(config),
+    });
+    if (error) console.error("upsertAttendanceConfigDb error:", error);
+  } catch (err) {
+    console.warn("upsertAttendanceConfigDb error:", err);
+  }
 }
 
 // 10. Activities

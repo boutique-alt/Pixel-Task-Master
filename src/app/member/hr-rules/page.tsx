@@ -116,7 +116,11 @@ export default function MemberHRRulesPage() {
                   </span>
                   <h3 className="text-sm font-black text-gray-900">{rule.title}</h3>
                 </div>
-                <p className="text-xs text-gray-600 font-medium">{rule.description}</p>
+                <p className="text-xs text-gray-600 font-medium">
+                  {rule.id === "or_2" || rule.title.includes("Grace Period")
+                    ? `Check-in before the daily grace time (${attendanceConfig.graceTime} AM). Check-ins after grace time are automatically marked as Late.`
+                    : rule.description}
+                </p>
               </div>
             </div>
           ))}

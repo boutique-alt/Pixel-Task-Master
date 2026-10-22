@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useCRM, AttendanceRecord } from "@/context/CRMContext";
+import { useCRM, AttendanceRecord, parseTimeToMs } from "@/context/CRMContext";
 import {
   Wifi,
   MapPin,
@@ -40,9 +40,13 @@ export default function AdminAttendancePage() {
   // Edit row state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<AttendanceRecord>>({});
+  const [currentTimeMs, setCurrentTimeMs] = useState<number | null>(null);
 
   useEffect(() => {
+    setCurrentTimeMs(Date.now());
     setTodayStr(new Date().toISOString().split("T")[0]);
+    const timer = setInterval(() => setCurrentTimeMs(Date.now()), 10000);
+    return () => clearInterval(timer);
   }, []);
 
   const showToast = (msg: string) => {
@@ -67,13 +71,21 @@ export default function AdminAttendancePage() {
     });
   };
 
+  const seenMemberDates = new Set<string>();
   const filteredRecords = attendanceRecords.filter((r) => {
     if (filterMember !== "all" && r.member.toLowerCase() !== filterMember.toLowerCase()) return false;
     if (filterDate && r.date !== filterDate) return false;
+    const key = `${(r.member || "").trim().toLowerCase()}_${r.date}`;
+    if (seenMemberDates.has(key)) return false;
+    seenMemberDates.add(key);
     return true;
   });
 
-  const todayPresentCount = attendanceRecords.filter((r) => r.date === todayStr).length;
+  const todayPresentCount = new Set(
+    attendanceRecords
+      .filter((r) => r.date === todayStr)
+      .map((r) => (r.member || "").trim().toLowerCase())
+  ).size;
   const pendingLaptopsCount = authorizedDevices.filter((d) => d.status === "Pending").length;
 
   const formatMinutes = (mins?: number) => {
@@ -208,7 +220,7 @@ export default function AdminAttendancePage() {
                               className="border border-gray-300 rounded-lg px-2 py-1 text-xs w-28"
                             />
                           ) : (
-                            rec.checkInTime.replace(/:\d{2}\s/, " ")
+                            (rec.checkInTime || "—").replace(/:\d{2}\s/, " ")
                           )}
                         </td>
                         <td className="py-3.5 px-4 font-bold text-gray-700">
@@ -227,7 +239,29 @@ export default function AdminAttendancePage() {
                           )}
                         </td>
                         <td className="py-3.5 px-4 font-bold text-gray-800">
-                          {formatMinutes(rec.workingMinutes)}
+                          {(() => {
+                            if (rec.checkOutTime) {
+                              if (rec.workingMinutes !== undefined) return formatMinutes(rec.workingMinutes);
+                              const inMs = parseTimeToMs(rec.date, rec.checkInTime) || rec.checkInTimestamp;
+                              const outMs = parseTimeToMs(rec.date, rec.checkOutTime) || rec.checkOutTimestamp;
+                              if (inMs && outMs && outMs > inMs) {
+                                return formatMinutes(Math.round((outMs - inMs) / 60000));
+                              }
+                              return "—";
+                            }
+                            const inMs = parseTimeToMs(rec.date, rec.checkInTime) || rec.checkInTimestamp;
+                            if (inMs) {
+                              const nowMs = currentTimeMs ?? inMs;
+                              const elapsedMins = Math.max(0, Math.floor((nowMs - inMs) / 60000));
+                              return (
+                                <span className="text-blue-600 flex items-center gap-1.5 font-mono">
+                                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                  {formatMinutes(elapsedMins)}
+                                </span>
+                              );
+                            }
+                            return "—";
+                          })()}
                         </td>
                         <td className="py-3.5 px-4 text-gray-500 font-semibold">{rec.verifiedVia}</td>
                         <td className="py-3.5 px-4">

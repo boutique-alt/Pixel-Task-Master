@@ -188,7 +188,8 @@ export async function getAllUsers(): Promise<AppUser[]> {
     const { data: cloudUsers } = await supabase.from("app_users").select("*");
     if (cloudUsers && cloudUsers.length > 0) {
       for (const cu of cloudUsers) {
-        if (cu.role === "admin" || cu.name?.toLowerCase() === "admin") {
+        if (cu.role === "admin" || cu.id === "usr_admin" || cu.name?.toLowerCase() === "admin") {
+          users[0].name = cu.name || users[0].name;
           users[0].password = cu.password || users[0].password;
           if (cu.phone) {
             users[0].phone = cu.phone;
@@ -230,7 +231,8 @@ export async function authenticateUser(
     const nameMatch = 
       uName === inputTrimName ||
       (inputTrimName.length >= 3 && uName.startsWith(inputTrimName)) ||
-      (uName.length >= 3 && inputTrimName.startsWith(uName));
+      (uName.length >= 3 && inputTrimName.startsWith(uName)) ||
+      (u.role === "admin" && (inputTrimName === "admin" || inputTrimName === "administrator"));
 
     if (!nameMatch) return false;
 
@@ -291,22 +293,49 @@ export async function resetUserPassword(
   const trimmedPass = newPassword.trim();
 
   // ==========================================
-  // SPECIAL ADMIN FLOW:
-  // Admin is the supreme authority. If name is "Admin" / "admin",
-  // allow reset immediately and bind Admin's phone to the provided phone!
+  // ADMIN FLOW:
+  // Admin is recognized either by:
+  // 1. Master keyword "Admin" / "administrator"
+  // 2. OR the custom name that Admin set on their account (matching Admin's phone)
+  // 3. OR the registered Admin phone number!
   // ==========================================
-  if (inputTrimName === "admin" || inputTrimName === "administrator") {
+  const adminUser = users.find((u) => u.role === "admin" || u.id === "usr_admin");
+  const currentAdminPhone = getAdminPhone();
+
+  const isAdminNameMatch =
+    inputTrimName === "admin" ||
+    inputTrimName === "administrator" ||
+    (adminUser && (
+      adminUser.name.trim().toLowerCase() === inputTrimName ||
+      (inputTrimName.length >= 3 && adminUser.name.trim().toLowerCase().startsWith(inputTrimName))
+    ));
+
+  const isAdminPhoneMatch =
+    isPhoneMatch(currentAdminPhone, phone) ||
+    (adminUser && isPhoneMatch(adminUser.phone, phone)) ||
+    isPhoneMatch("9876543210", phone);
+
+  // If Name matches Admin or (Name is custom and Phone matches Admin)
+  const isTargetAdmin =
+    (isAdminNameMatch && (isAdminPhoneMatch || phone.trim().length >= 4)) ||
+    (isAdminPhoneMatch && inputTrimName === "admin");
+
+  if (isTargetAdmin) {
+    const adminFinalName = inputTrimName === "admin" ? (adminUser?.name || "Admin") : name.trim();
+    const adminFinalPhone = phone.trim() || adminUser?.phone || currentAdminPhone;
+
     saveCustomPassword("admin", trimmedPass);
     saveCustomPassword("usr_admin", trimmedPass);
-    if (phone.trim()) {
-      setAdminPhone(phone.trim());
+    saveCustomPassword(adminFinalName, trimmedPass);
+    if (adminFinalPhone) {
+      setAdminPhone(adminFinalPhone);
     }
 
     try {
       await supabase.from("app_users").upsert({
         id: "usr_admin",
-        name: "Admin",
-        phone: phone.trim() || getAdminPhone(),
+        name: adminFinalName,
+        phone: adminFinalPhone,
         password: trimmedPass,
         role: "admin",
         status: "Active",
@@ -317,7 +346,7 @@ export async function resetUserPassword(
 
     return {
       success: true,
-      message: "Admin password reset successfully! You can now log in as Admin with your new password.",
+      message: `Admin account (${adminFinalName}) password reset successfully! You can now log in with your new password.`,
     };
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useCRM } from "@/context/CRMContext";
+import { useCRM, parseTimeToMs } from "@/context/CRMContext";
 import {
   Wifi,
   MapPin,
@@ -110,9 +110,13 @@ export default function MemberAttendancePage() {
     (r) => r.member.toLowerCase() === activeMemberName.toLowerCase() && r.date === todayStr
   );
 
-  const myRecords = attendanceRecords.filter(
-    (r) => r.member.toLowerCase() === activeMemberName.toLowerCase()
-  );
+  const seenMemberDates = new Set<string>();
+  const myRecords = attendanceRecords.filter((r) => {
+    if (r.member.toLowerCase() !== activeMemberName.toLowerCase()) return false;
+    if (seenMemberDates.has(r.date)) return false;
+    seenMemberDates.add(r.date);
+    return true;
+  });
 
   const handleVerifyGps = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
@@ -164,14 +168,20 @@ export default function MemberAttendancePage() {
 
   const getLiveElapsedDisplay = () => {
     if (!todayRecord) return { text: "0h 00m", percent: 0 };
-    if (todayRecord.checkOutTime && todayRecord.workingMinutes !== undefined) {
-      const h = Math.floor(todayRecord.workingMinutes / 60);
-      const m = todayRecord.workingMinutes % 60;
-      const pct = Math.min(100, Math.round((todayRecord.workingMinutes / ((attendanceConfig.targetHours || 8) * 60)) * 100));
-      return { text: `${h}h ${m}m`, percent: pct };
+    const inMs = parseTimeToMs(todayRecord.date, todayRecord.checkInTime) || todayRecord.checkInTimestamp;
+    if (todayRecord.checkOutTime) {
+      const outMs = parseTimeToMs(todayRecord.date, todayRecord.checkOutTime) || todayRecord.checkOutTimestamp;
+      const mins = todayRecord.workingMinutes !== undefined
+        ? todayRecord.workingMinutes
+        : (inMs && outMs && outMs > inMs ? Math.round((outMs - inMs) / 60000) : 0);
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      const pct = Math.min(100, Math.round((mins / ((attendanceConfig.targetHours || 8) * 60)) * 100));
+      return { text: `${h}h ${m < 10 ? `0${m}` : m}m`, percent: pct };
     }
-    if (!nowTimestamp) return { text: "0h 00m", percent: 0 };
-    const diffMins = Math.max(0, Math.floor((nowTimestamp - todayRecord.checkInTimestamp) / 60000));
+    if (!inMs) return { text: "0h 00m", percent: 0 };
+    const nowMs = nowTimestamp || Date.now();
+    const diffMins = Math.max(0, Math.floor((nowMs - inMs) / 60000));
     const h = Math.floor(diffMins / 60);
     const m = diffMins % 60;
     const pct = Math.min(100, Math.round((diffMins / ((attendanceConfig.targetHours || 8) * 60)) * 100));
@@ -196,7 +206,7 @@ export default function MemberAttendancePage() {
           <div>
             <h1 className="text-xl font-black text-gray-900">Today&apos;s Attendance</h1>
             <p className="text-xs text-gray-500 font-medium mt-0.5">
-              Shift: {attendanceConfig.officeStartTime} – {attendanceConfig.officeEndTime} • 1st WiFi/GPS connect auto-records Check-In
+              Shift: {attendanceConfig.officeStartTime} – {attendanceConfig.officeEndTime} <span className="text-amber-700 font-bold">(Grace: {attendanceConfig.graceTime})</span> • 1st WiFi/GPS connect auto-records Check-In
             </p>
           </div>
 
@@ -255,6 +265,12 @@ export default function MemberAttendancePage() {
                 ? "Checking GPS..."
                 : "GPS Standby"}
             </span>
+
+            {/* Pill 4: Grace Time */}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+              <Clock size={14} className="text-amber-600" />
+              Grace Time: {attendanceConfig.graceTime || "09:45"}
+            </span>
           </div>
 
           {/* Right side quick action if needed */}
@@ -294,7 +310,7 @@ export default function MemberAttendancePage() {
               )}
             </div>
             <div className="text-lg sm:text-2xl font-black text-gray-900 my-1 sm:my-2 truncate">
-              {todayRecord ? todayRecord.checkInTime.replace(/:\d{2}\s/, " ") : "— : —"}
+              {todayRecord ? (todayRecord.checkInTime || "—").replace(/:\d{2}\s/, " ") : "— : —"}
             </div>
             <div className="text-[10px] sm:text-[11px] font-semibold text-emerald-700 truncate">
               {todayRecord ? "Auto 1st connect" : "Waiting for office"}
@@ -408,7 +424,28 @@ export default function MemberAttendancePage() {
                       )}
                     </td>
                     <td className="py-3.5 px-4 font-bold text-gray-800">
-                      {rec.workingMinutes !== undefined ? formatMinutes(rec.workingMinutes) : "Active"}
+                      {(() => {
+                        if (rec.checkOutTime) {
+                          if (rec.workingMinutes !== undefined) return formatMinutes(rec.workingMinutes);
+                          const inMs = rec.checkInTimestamp || parseTimeToMs(rec.date, rec.checkInTime);
+                          const outMs = rec.checkOutTimestamp || parseTimeToMs(rec.date, rec.checkOutTime);
+                          if (inMs && outMs && outMs > inMs) {
+                            return formatMinutes(Math.round((outMs - inMs) / 60000));
+                          }
+                          return "—";
+                        }
+                        const inMs = rec.checkInTimestamp || parseTimeToMs(rec.date, rec.checkInTime);
+                        if (inMs) {
+                          const elapsedMins = Math.max(0, Math.floor(((nowTimestamp || Date.now()) - inMs) / 60000));
+                          return (
+                            <span className="text-blue-600 flex items-center gap-1 font-mono">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                              {formatMinutes(elapsedMins)}
+                            </span>
+                          );
+                        }
+                        return "Active";
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 text-gray-500 font-semibold">{rec.verifiedVia}</td>
                     <td className="py-3.5 px-4">

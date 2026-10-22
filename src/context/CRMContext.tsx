@@ -14,6 +14,7 @@ import {
   deleteTaskDb,
   fetchAttendanceRecordsDb,
   upsertAttendanceRecordDb,
+  deleteAttendanceRecordDb,
   fetchAuthorizedDevicesDb,
   upsertAuthorizedDeviceDb,
   fetchLeaveRequestsDb,
@@ -32,6 +33,8 @@ import {
   fetchOfficeRulesDb,
   upsertOfficeRuleDb,
   deleteOfficeRuleDb,
+  fetchAttendanceConfigDb,
+  upsertAttendanceConfigDb,
   fetchActivitiesDb,
   insertActivityDb,
 } from "@/lib/crmService";
@@ -291,35 +294,7 @@ const INITIAL_ATTENDANCE_CONFIG: OfficeAttendanceConfig = {
   autoCheckInOnOpen: true,
 };
 
-const INITIAL_ATTENDANCE_RECORDS: AttendanceRecord[] = [
-  {
-    id: "att_1",
-    member: "Rahim",
-    date: "2026-10-12",
-    checkInTime: "09:12:18 AM",
-    checkInTimestamp: 1791776538000,
-    checkOutTime: "06:34:10 PM",
-    checkOutTimestamp: 1791810250000,
-    workingMinutes: 562,
-    status: "Checked Out",
-    verifiedVia: "Panda WiFi + Office Laptop",
-    deviceId: "OFFICE-LAPTOP-A1",
-  },
-  {
-    id: "att_2",
-    member: "Karim",
-    date: "2026-10-12",
-    checkInTime: "09:52:40 AM",
-    checkInTimestamp: 1791778960000,
-    checkOutTime: "06:40:00 PM",
-    checkOutTimestamp: 1791810600000,
-    workingMinutes: 527,
-    status: "Checked Out",
-    verifiedVia: "Office GPS + Office Laptop",
-    deviceId: "OFFICE-LAPTOP-B2",
-    lateReason: "Traffic jam at crossing",
-  },
-];
+const INITIAL_ATTENDANCE_RECORDS: AttendanceRecord[] = [];
 
 const INITIAL_HR_NOTICES: HRNotice[] = [
   {
@@ -449,6 +424,23 @@ const STORAGE_KEYS = {
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
 
+export function parseTimeToMs(dateStr: string, timeStr?: string): number {
+  if (!timeStr) return 0;
+  const match = timeStr.trim().match(/(\d+)(?:[:\s](\d+))?(?:[:\s](\d+))?\s*(AM|PM)?/i);
+  if (!match) return 0;
+
+  let h = parseInt(match[1], 10);
+  const m = match[2] ? parseInt(match[2], 10) : 0;
+  const s = match[3] ? parseInt(match[3], 10) : 0;
+  const ampm = match[4]?.toUpperCase();
+
+  if (ampm === "PM" && h < 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+
+  const [y, mon, d] = (dateStr || new Date().toISOString().split("T")[0]).split("-").map(Number);
+  return new Date(y, mon - 1, d, h, m, s).getTime();
+}
+
 export function CRMProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [directoryClients, setDirectoryClients] = useState<DirectoryClient[]>(INITIAL_DIRECTORY_CLIENTS);
@@ -545,7 +537,23 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(STORAGE_KEYS.AUTHORIZED_DEVICES, JSON.stringify(initialDevices));
       }
 
-      if (savedAttRecords) setAttendanceRecords(JSON.parse(savedAttRecords));
+      if (savedAttRecords) {
+        try {
+          const parsed: AttendanceRecord[] = JSON.parse(savedAttRecords);
+          const seen = new Set<string>();
+          const deduped: AttendanceRecord[] = [];
+          for (const r of parsed) {
+            const key = `${(r.member || "").trim().toLowerCase()}_${r.date}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              deduped.push(r);
+            }
+          }
+          setAttendanceRecords(deduped);
+        } catch (e) {
+          console.error(e);
+        }
+      }
 
       const activeSession = getSessionUser();
       if (activeSession) {
@@ -593,7 +601,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             dbPayments, 
             dbNotices, 
             dbRules, 
-            dbActs
+            dbActs,
+            dbConfig,
           ] = await Promise.all([
             fetchMembersDb(),
             fetchDirectoryClientsDb(),
@@ -607,12 +616,50 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             fetchHRNoticesDb(),
             fetchOfficeRulesDb(),
             fetchActivitiesDb(),
+            fetchAttendanceConfigDb(),
           ]);
+
+          if (dbConfig) {
+            setAttendanceConfig(dbConfig);
+            try {
+              localStorage.setItem(STORAGE_KEYS.ATTENDANCE_CONFIG, JSON.stringify(dbConfig));
+            } catch (e) {
+              console.error(e);
+            }
+          }
 
           if (dbMembers && dbMembers.length > 0) setMembers(dbMembers);
           if (dbClients && dbClients.length > 0) setDirectoryClients(dbClients);
           if (dbTasks && dbTasks.length > 0) setClients(dbTasks);
-          if (dbAttRecs && dbAttRecs.length > 0) setAttendanceRecords(dbAttRecs);
+          if (dbAttRecs && dbAttRecs.length > 0) {
+            const seen = new Set<string>();
+            const deduped: AttendanceRecord[] = [];
+            const duplicateIds: string[] = [];
+
+            for (const r of dbAttRecs) {
+              const key = `${(r.member || "").trim().toLowerCase()}_${r.date}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                deduped.push(r);
+              } else {
+                duplicateIds.push(r.id);
+              }
+            }
+
+            setAttendanceRecords(deduped);
+            try {
+              localStorage.setItem(STORAGE_KEYS.ATTENDANCE_RECORDS, JSON.stringify(deduped));
+            } catch (e) {
+              console.error(e);
+            }
+
+            // Automatically purge duplicate entries from Supabase in background
+            if (duplicateIds.length > 0) {
+              for (const dupId of duplicateIds) {
+                deleteAttendanceRecordDb(dupId);
+              }
+            }
+          }
           if (dbAuthDevs && dbAuthDevs.length > 0) setAuthorizedDevices(dbAuthDevs);
           if (dbLeaveReqs && dbLeaveReqs.length > 0) setLeaveRequests(dbLeaveReqs);
           if (dbLeaveTypes && dbLeaveTypes.length > 0) setLeaveTypes(dbLeaveTypes);
@@ -990,7 +1037,16 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   // --- ATTENDANCE & SECURITY CRUD ---
   const updateAttendanceConfig = (updated: Partial<OfficeAttendanceConfig>) => {
-    setAttendanceConfig((prev) => ({ ...prev, ...updated }));
+    setAttendanceConfig((prev) => {
+      const next = { ...prev, ...updated };
+      upsertAttendanceConfigDb(next);
+      try {
+        localStorage.setItem(STORAGE_KEYS.ATTENDANCE_CONFIG, JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
     addActivity("Admin updated Office Attendance & WiFi/GPS Security rules", "status");
   };
 
@@ -1042,7 +1098,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   };
 
   const checkInMember = (memberName: string, verifiedVia: string, lateReason?: string) => {
-    if (!memberName || memberName === "all") return;
+    if (!memberName || memberName === "all" || memberName.toLowerCase() === "admin") return;
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
@@ -1058,17 +1114,20 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     const isLate =
       now.getHours() > graceH || (now.getHours() === graceH && now.getMinutes() > graceM);
 
+    const cleanMemberSlug = memberName.toLowerCase().trim().replace(/[^a-z0-9]/g, "_");
+    const deterministicId = `att_${cleanMemberSlug}_${todayStr}`;
+
     let created = false;
     setAttendanceRecords((prev) => {
       // Prevent duplicate check-in on the same day (1st connection of the day stays locked)
       const alreadyToday = prev.some(
-        (r) => r.member.trim().toLowerCase() === memberName.trim().toLowerCase() && r.date === todayStr
+        (r) => r.id === deterministicId || (r.member.trim().toLowerCase() === memberName.trim().toLowerCase() && r.date === todayStr)
       );
       if (alreadyToday) return prev;
       created = true;
       const newRecord: AttendanceRecord = {
-        id: "att_" + Math.random().toString(36).substr(2, 9),
-        member: memberName,
+        id: deterministicId,
+        member: memberName.trim(),
         date: todayStr,
         checkInTime: timeString,
         checkInTimestamp: now.getTime(),
@@ -1089,11 +1148,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   // Auto Check-In on 1st WiFi OR GPS + Laptop connection of the day
   useEffect(() => {
     if (!isHydrated || !attendanceConfig.autoCheckInOnOpen) return;
-    const activeMember = currentMember && currentMember !== "all" ? currentMember : "Rahim";
+
+    // CRITICAL: Only logged-in members (role === "member") can be checked in!
+    // Never auto check-in Admin, and never fall back to "Rahim" when admin is logged in!
+    if (!sessionUser || sessionUser.role !== "member" || !sessionUser.name) return;
+    const activeMember = sessionUser.name.trim();
+    if (!activeMember || activeMember.toLowerCase() === "admin") return;
+
     const todayStr = new Date().toISOString().split("T")[0];
 
     const alreadyCheckedInToday = attendanceRecords.some(
-      (r) => r.member.trim().toLowerCase() === activeMember.trim().toLowerCase() && r.date === todayStr
+      (r) => r.member.trim().toLowerCase() === activeMember.toLowerCase() && r.date === todayStr
     );
     if (alreadyCheckedInToday) return;
 
@@ -1166,7 +1231,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     currentNetworkIp,
     currentDeviceId,
     authorizedDevices,
-    currentMember,
+    sessionUser,
     attendanceRecords,
   ]);
 
@@ -1205,12 +1270,111 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   };
 
   const adminUpdateAttendance = (id: string, updated: Partial<AttendanceRecord>) => {
-    setAttendanceRecords((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
+    setAttendanceRecords((prev) => {
+      let targetRecord: AttendanceRecord | undefined;
+      const nextRecords = prev.map((r) => {
+        if (r.id === id) {
+          // 1. Normalize checkInTime if user entered "10:00" or "10 00" or "10:00 AM"
+          let newCheckInTime = typeof updated.checkInTime === "string" && updated.checkInTime.trim()
+            ? updated.checkInTime.trim()
+            : r.checkInTime;
+          if (newCheckInTime && !newCheckInTime.toUpperCase().includes("AM") && !newCheckInTime.toUpperCase().includes("PM")) {
+            const parts = newCheckInTime.replace(/\s+/, ":").split(":");
+            if (parts.length >= 2) {
+              const h = Number(parts[0]);
+              const m = parts[1].padStart(2, "0");
+              const ampm = h >= 12 ? "PM" : "AM";
+              const formattedH = h % 12 === 0 ? 12 : h % 12;
+              newCheckInTime = `${String(formattedH).padStart(2, "0")}:${m}:00 ${ampm}`;
+            }
+          }
+
+          // 2. Normalize checkOutTime if user entered "06:30" or "18:30"
+          let newCheckOutTime = typeof updated.checkOutTime === "string" && updated.checkOutTime.trim()
+            ? updated.checkOutTime.trim()
+            : (updated.checkOutTime === null || updated.checkOutTime === "" ? undefined : r.checkOutTime);
+          if (newCheckOutTime && !newCheckOutTime.toUpperCase().includes("AM") && !newCheckOutTime.toUpperCase().includes("PM")) {
+            const parts = newCheckOutTime.replace(/\s+/, ":").split(":");
+            if (parts.length >= 2) {
+              const h = Number(parts[0]);
+              const m = parts[1].padStart(2, "0");
+              const ampm = h >= 12 ? "PM" : "AM";
+              const formattedH = h % 12 === 0 ? 12 : h % 12;
+              newCheckOutTime = `${String(formattedH).padStart(2, "0")}:${m}:00 ${ampm}`;
+            }
+          }
+
+          // 3. Compute timestamps from date + normalized time strings
+          const newInMs = parseTimeToMs(r.date, newCheckInTime) || r.checkInTimestamp;
+          const newOutMs = newCheckOutTime ? (parseTimeToMs(r.date, newCheckOutTime) || r.checkOutTimestamp) : undefined;
+
+          // 4. Recalculate workingMinutes if checkOutTime exists
+          let newWorkingMinutes = updated.workingMinutes !== undefined ? updated.workingMinutes : r.workingMinutes;
+          if (newCheckOutTime && newInMs && newOutMs && newOutMs > newInMs) {
+            newWorkingMinutes = Math.max(1, Math.round((newOutMs - newInMs) / 60000));
+          } else if (!newCheckOutTime) {
+            newWorkingMinutes = undefined;
+          }
+
+          // 5. Recalculate status against graceTime
+          let newStatus = updated.status || r.status;
+          if (newCheckOutTime) {
+            newStatus = "Checked Out";
+          } else if (newCheckInTime && !updated.status) {
+            const [graceH, graceM] = (attendanceConfig.graceTime || "09:45").split(":").map(Number);
+            const match = newCheckInTime.match(/(\d+):(\d+).*?(AM|PM)/i);
+            if (match) {
+              let h = Number(match[1]);
+              const m = Number(match[2]);
+              const ampm = match[3].toUpperCase();
+              if (ampm === "PM" && h < 12) h += 12;
+              if (ampm === "AM" && h === 12) h = 0;
+              const isLate = h > graceH || (h === graceH && m > graceM);
+              newStatus = isLate ? "Late" : "On Time";
+            }
+          }
+
+          targetRecord = {
+            ...r,
+            ...updated,
+            checkInTime: newCheckInTime,
+            checkInTimestamp: newInMs,
+            checkOutTime: newCheckOutTime || undefined,
+            checkOutTimestamp: newOutMs,
+            workingMinutes: newWorkingMinutes,
+            status: newStatus,
+          };
+          return targetRecord;
+        }
+        return r;
+      });
+
+      if (targetRecord) {
+        upsertAttendanceRecordDb(targetRecord);
+        try {
+          localStorage.setItem(STORAGE_KEYS.ATTENDANCE_RECORDS, JSON.stringify(nextRecords));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      return nextRecords;
+    });
     addActivity("Admin updated an attendance record", "status");
   };
 
   const deleteAttendanceRecord = (id: string) => {
-    setAttendanceRecords((prev) => prev.filter((r) => r.id !== id));
+    setAttendanceRecords((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.ATTENDANCE_RECORDS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    deleteAttendanceRecordDb(id);
+    addActivity("Admin removed an attendance record", "status");
   };
 
   // --- HR NOTICES & OFFICE RULES CRUD ---
