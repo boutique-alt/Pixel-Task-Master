@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { authenticateUser, resetUserPassword, INITIAL_APP_USERS } from "@/lib/authService";
 import { useCRM } from "@/context/CRMContext";
+import InstallAppPrompt from "@/components/InstallAppPrompt";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -254,6 +255,9 @@ export default function LoginPage() {
           </form>
 
         </div>
+
+        {/* Install App Banner on Login */}
+        <InstallAppPrompt variant="banner" />
       </div>
 
       {/* Forgot Password Modal */}

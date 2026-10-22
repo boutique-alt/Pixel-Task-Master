@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Search, Bell, Users, LogOut, ShieldCheck, UserCheck, Menu } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
+import InstallAppPrompt from "@/components/InstallAppPrompt";
 
 interface HeaderProps {
   title?: string;
@@ -127,6 +128,9 @@ export default function Header({
           />
         </div>
         
+        {/* Install App Button */}
+        <InstallAppPrompt variant="header" />
+
         {/* Notifications Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button 
