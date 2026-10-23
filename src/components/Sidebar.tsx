@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useCRM } from "@/context/CRMContext";
-import InstallAppPrompt from "@/components/InstallAppPrompt";
 import { 
   LayoutDashboard, 
   ListTodo, 
@@ -176,13 +175,8 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
           )}
         </nav>
 
-        {/* Install App CTA in Sidebar */}
-        <div className="mt-auto pt-2">
-          <InstallAppPrompt variant="sidebar" />
-        </div>
-
         {/* User Footer / Sign Out */}
-        <div className="p-4 relative z-10 w-full">
+        <div className="p-4 mt-auto relative z-10 w-full">
           <button 
             onClick={logout} 
             className="flex items-center gap-3 px-4 py-3 bg-[#0D2653] hover:bg-[#123069] rounded-[16px] cursor-pointer transition-colors justify-between w-full text-left"

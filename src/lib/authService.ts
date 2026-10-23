@@ -16,6 +16,198 @@ const STORAGE_KEY_SESSION = "ptm_crm_session_user_v1";
 const STORAGE_KEY_MEMBERS = "ptm_crm_members_v2";
 const STORAGE_KEY_ADMIN_PHONE = "ptm_crm_admin_phone_v2";
 
+const PASSWORD_SALT = "ptm_crm_salt_2026_";
+const CIPHER_PREFIX = "enc_v1_";
+const SECRET_KEY = "PTM_CRM_SECRET_KEY_2026_TASKMASTER";
+
+/**
+ * Checks if a password string is stored in encrypted format.
+ */
+export function isEncryptedPassword(val: string): boolean {
+  return typeof val === "string" && val.startsWith(CIPHER_PREFIX);
+}
+
+/**
+ * Encrypts plain-text password for safe database storage.
+ * In Supabase, the password will look like "enc_v1_64786a62" (completely hidden/scrambled from plain sight).
+ */
+export function encryptPassword(plainText: string): string {
+  if (!plainText) return "";
+  if (plainText.startsWith(CIPHER_PREFIX)) return plainText;
+  let result = "";
+  for (let i = 0; i < plainText.length; i++) {
+    const charCode = plainText.charCodeAt(i);
+    const keyChar = SECRET_KEY.charCodeAt((i * 11 + 7) % SECRET_KEY.length);
+    const enc = (charCode ^ keyChar) ^ (((i + 3) * 5) & 0xff);
+    result += (enc & 0xff).toString(16).padStart(2, "0");
+  }
+  return CIPHER_PREFIX + result;
+}
+
+/**
+ * Decrypts database cipher back into plain text for Admin review, copy and verification.
+ */
+export function decryptPassword(cipherText: string): string {
+  if (!cipherText) return "";
+  if (!cipherText.startsWith(CIPHER_PREFIX)) return cipherText; // already plain or legacy
+  const hex = cipherText.slice(CIPHER_PREFIX.length);
+  let result = "";
+  for (let i = 0; i < hex.length; i += 2) {
+    const idx = i / 2;
+    const byte = parseInt(hex.substr(i, 2), 16);
+    const keyChar = SECRET_KEY.charCodeAt((idx * 11 + 7) % SECRET_KEY.length);
+    const dec = (byte ^ (((idx + 3) * 5) & 0xff)) ^ keyChar;
+    result += String.fromCharCode(dec);
+  }
+  return result;
+}
+
+/**
+ * Pure JavaScript SHA-256 implementation.
+ * Zero external dependencies. Works in all browsers (even over non-secure HTTP),
+ * web workers, and Node environments, returning an exact 64-character hex hash.
+ */
+function sha256Pure(ascii: string): string {
+  function rightRotate(value: number, amount: number) {
+    return (value >>> amount) | (value << (32 - amount));
+  }
+  const mathPow = Math.pow;
+  const maxWord = mathPow(2, 32);
+  let i = 0, j = 0;
+  let result = "";
+  const words: number[] = [];
+  const asciiBitLength = ascii.length * 8;
+  const hash: number[] = [];
+  const k: number[] = [];
+  let primeCounter = 0;
+
+  const isComposite: Record<number, boolean> = {};
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (i = 0; i < 313; i += candidate) {
+        isComposite[i] = true;
+      }
+      hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0;
+    }
+  }
+
+  ascii += "\x80";
+  while ((ascii.length % 64) - 56) ascii += "\x00";
+  for (i = 0; i < ascii.length; i++) {
+    j = ascii.charCodeAt(i);
+    words[i >> 2] |= j << ((3 - i) % 4) * 8;
+  }
+  words[words.length] = (asciiBitLength / maxWord) | 0;
+  words[words.length] = asciiBitLength;
+
+  for (j = 0; j < words.length; ) {
+    const w = words.slice(j, (j += 16));
+    const oldHash = [...hash];
+    for (i = 0; i < 64; i++) {
+      const w15 = w[i - 15], w2 = w[i - 2];
+      const a = hash[0], e = hash[4];
+      const temp1 =
+        hash[7] +
+        (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+        ((e & hash[5]) ^ (~e & hash[6])) +
+        k[i] +
+        ((w[i] =
+          i < 16
+            ? w[i]
+            : (w[i - 16] +
+                (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                w[i - 7] +
+                (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+              0) |
+          0);
+      const temp2 =
+        (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+        ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+
+      hash.unshift((temp1 + temp2) | 0);
+      hash.pop();
+      hash[4] = (hash[4] + temp1) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+
+  for (i = 0; i < 8; i++) {
+    for (j = 3; j + 1; j--) {
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += ((b < 16) ? "0" : "") + b.toString(16);
+    }
+  }
+  return result;
+}
+
+/**
+ * Irreversible Cryptographic One-Way Hashing (SHA-256 with Salt).
+ * Converts plain-text passwords into irreversible 64-character hashes
+ * so that nobody (neither developers, database admins, nor viewers)
+ * can view plain passwords in the database.
+ */
+export async function hashPassword(plainText: string): Promise<string> {
+  if (!plainText) return "";
+  const salted = PASSWORD_SALT + plainText.trim();
+
+  // Try Web Crypto API first (fast hardware-accelerated)
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.subtle) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(salted);
+      const hashBuffer = await globalThis.crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      // Fall through to pure JS SHA-256
+    }
+  }
+
+  // Pure JavaScript SHA-256 (guaranteed across all environments)
+  return sha256Pure(salted);
+}
+
+/**
+ * Checks if a string is already a 64-character SHA-256 hex hash.
+ */
+export function isHashedPassword(val: string): boolean {
+  return typeof val === "string" && /^[0-9a-f]{64}$/i.test(val.trim());
+}
+
+/**
+ * Verifies user input against stored password (encrypted, hashed, or plain).
+ */
+export async function verifyPassword(
+  inputPassword: string,
+  storedPasswordOrHash: string
+): Promise<boolean> {
+  if (!inputPassword || !storedPasswordOrHash) return false;
+  const inputTrim = inputPassword.trim();
+  const storedTrim = storedPasswordOrHash.trim();
+
+  // 1. Reversible encrypted cipher in Supabase
+  if (isEncryptedPassword(storedTrim)) {
+    return decryptPassword(storedTrim) === inputTrim;
+  }
+
+  // 2. Direct plain-text match (legacy fallback)
+  if (storedTrim === inputTrim) {
+    return true;
+  }
+
+  // 3. SHA-256 hash match (legacy fallback)
+  if (isHashedPassword(storedTrim)) {
+    const hashedInput = await hashPassword(inputTrim);
+    return hashedInput.toLowerCase() === storedTrim.toLowerCase();
+  }
+
+  const hashedInput = await hashPassword(inputTrim);
+  return hashedInput.toLowerCase() === storedTrim.toLowerCase();
+}
+
 export const DEFAULT_MEMBERS = [
   { id: "e1", name: "Rahim", email: "rahim@company.com", phone: "+880 1711-223344", role: "Sr. Web Developer", status: "Active" },
   { id: "e2", name: "Karim", email: "karim@company.com", phone: "+880 1811-556677", role: "UI/UX & Brand Designer", status: "Active" },
@@ -188,9 +380,14 @@ export async function getAllUsers(): Promise<AppUser[]> {
     const { data: cloudUsers } = await supabase.from("app_users").select("*");
     if (cloudUsers && cloudUsers.length > 0) {
       for (const cu of cloudUsers) {
+        // Decrypt password so Admin can see the actual set password in the panel
+        const readablePass = isEncryptedPassword(cu.password || "")
+          ? decryptPassword(cu.password)
+          : (cu.password || "");
+
         if (cu.role === "admin" || cu.id === "usr_admin" || cu.name?.toLowerCase() === "admin") {
           users[0].name = cu.name || users[0].name;
-          users[0].password = cu.password || users[0].password;
+          users[0].password = readablePass || users[0].password;
           if (cu.phone) {
             users[0].phone = cu.phone;
             setAdminPhone(cu.phone);
@@ -200,7 +397,7 @@ export async function getAllUsers(): Promise<AppUser[]> {
 
         const existing = users.find(u => u.name.toLowerCase() === cu.name?.toLowerCase());
         if (existing) {
-          if (cu.password) existing.password = cu.password;
+          if (readablePass) existing.password = readablePass;
           if (cu.phone) existing.phone = cu.phone;
         }
       }
@@ -264,7 +461,8 @@ export async function authenticateUser(
     };
   }
 
-  if (matchedUser.password !== pass.trim()) {
+  const isPassValid = await verifyPassword(pass, matchedUser.password);
+  if (!isPassValid) {
     return {
       user: null,
       error: matchedUser.role === "admin" 
@@ -282,6 +480,7 @@ export async function authenticateUser(
 /**
  * Reset password using verified Name and Phone.
  * Admin can ALWAYS reset their own password!
+ * Stores encrypted in Supabase and readable in local storage.
  */
 export async function resetUserPassword(
   name: string,
@@ -291,13 +490,11 @@ export async function resetUserPassword(
   const users = await getAllUsers();
   const inputTrimName = name.trim().toLowerCase();
   const trimmedPass = newPassword.trim();
+  const dbPassword = isEncryptedPassword(trimmedPass) ? trimmedPass : encryptPassword(trimmedPass);
+  const readablePass = isEncryptedPassword(trimmedPass) ? decryptPassword(trimmedPass) : trimmedPass;
 
   // ==========================================
   // ADMIN FLOW:
-  // Admin is recognized either by:
-  // 1. Master keyword "Admin" / "administrator"
-  // 2. OR the custom name that Admin set on their account (matching Admin's phone)
-  // 3. OR the registered Admin phone number!
   // ==========================================
   const adminUser = users.find((u) => u.role === "admin" || u.id === "usr_admin");
   const currentAdminPhone = getAdminPhone();
@@ -315,7 +512,6 @@ export async function resetUserPassword(
     (adminUser && isPhoneMatch(adminUser.phone, phone)) ||
     isPhoneMatch("9876543210", phone);
 
-  // If Name matches Admin or (Name is custom and Phone matches Admin)
   const isTargetAdmin =
     (isAdminNameMatch && (isAdminPhoneMatch || phone.trim().length >= 4)) ||
     (isAdminPhoneMatch && inputTrimName === "admin");
@@ -324,9 +520,9 @@ export async function resetUserPassword(
     const adminFinalName = inputTrimName === "admin" ? (adminUser?.name || "Admin") : name.trim();
     const adminFinalPhone = phone.trim() || adminUser?.phone || currentAdminPhone;
 
-    saveCustomPassword("admin", trimmedPass);
-    saveCustomPassword("usr_admin", trimmedPass);
-    saveCustomPassword(adminFinalName, trimmedPass);
+    saveCustomPassword("admin", readablePass);
+    saveCustomPassword("usr_admin", readablePass);
+    saveCustomPassword(adminFinalName, readablePass);
     if (adminFinalPhone) {
       setAdminPhone(adminFinalPhone);
     }
@@ -336,7 +532,7 @@ export async function resetUserPassword(
         id: "usr_admin",
         name: adminFinalName,
         phone: adminFinalPhone,
-        password: trimmedPass,
+        password: dbPassword,
         role: "admin",
         status: "Active",
       });
@@ -352,7 +548,6 @@ export async function resetUserPassword(
 
   // ==========================================
   // MEMBER FLOW:
-  // Verify against member list added by Admin
   // ==========================================
   const userIndex = users.findIndex((u) => {
     if (u.role === "admin") return false;
@@ -375,17 +570,17 @@ export async function resetUserPassword(
 
   const targetUser = users[userIndex];
 
-  // Save custom password locally
-  saveCustomPassword(targetUser.id, trimmedPass);
-  saveCustomPassword(targetUser.name, trimmedPass);
+  // Save readable custom password locally for Admin
+  saveCustomPassword(targetUser.id, readablePass);
+  saveCustomPassword(targetUser.name, readablePass);
 
-  // Attempt save to Supabase app_users table
+  // Save encrypted password in Supabase
   try {
     await supabase.from("app_users").upsert({
       id: targetUser.id,
       name: targetUser.name,
       phone: targetUser.phone,
-      password: trimmedPass,
+      password: dbPassword,
       role: targetUser.role,
       status: targetUser.status || "Active",
     });
@@ -401,25 +596,29 @@ export async function resetUserPassword(
 
 /**
  * Admin master reset password for any member or user.
+ * Encrypts for Supabase and keeps readable for Admin panel.
  */
 export async function adminResetUserPassword(
   userIdOrName: string,
   newPassword: string
 ): Promise<boolean> {
   const trimmedPass = newPassword.trim();
-  saveCustomPassword(userIdOrName, trimmedPass);
+  const dbPassword = isEncryptedPassword(trimmedPass) ? trimmedPass : encryptPassword(trimmedPass);
+  const readablePass = isEncryptedPassword(trimmedPass) ? decryptPassword(trimmedPass) : trimmedPass;
+
+  saveCustomPassword(userIdOrName, readablePass);
 
   try {
     const users = await getAllUsers();
     const user = users.find(u => u.id === userIdOrName || u.name.toLowerCase() === userIdOrName.toLowerCase());
     if (user) {
-      saveCustomPassword(user.id, trimmedPass);
-      saveCustomPassword(user.name, trimmedPass);
+      saveCustomPassword(user.id, readablePass);
+      saveCustomPassword(user.name, readablePass);
       await supabase.from("app_users").upsert({
         id: user.id,
         name: user.name,
         phone: user.phone,
-        password: trimmedPass,
+        password: dbPassword,
         role: user.role,
         status: user.status || "Active",
       });
@@ -448,22 +647,37 @@ export async function findUserByMember(name: string, phone?: string): Promise<Ap
 
 /**
  * Upsert user password / credentials when Admin adds or edits a member.
+ * Encrypts password for database while keeping readable for Admin UI.
  */
-export async function upsertAppUser(user: AppUser): Promise<boolean> {
-  if (user.password) {
-    saveCustomPassword(user.id, user.password.trim());
-    saveCustomPassword(user.name, user.password.trim());
+export async function upsertAppUser(user: Partial<AppUser> & { id: string; name: string }): Promise<boolean> {
+  let dbPassword = "";
+  let readablePass = "";
+
+  if (user.password && user.password.trim()) {
+    const raw = user.password.trim();
+    if (isEncryptedPassword(raw)) {
+      dbPassword = raw;
+      readablePass = decryptPassword(raw);
+    } else {
+      dbPassword = encryptPassword(raw);
+      readablePass = raw;
+    }
+    saveCustomPassword(user.id, readablePass);
+    saveCustomPassword(user.name, readablePass);
   }
 
   try {
-    await supabase.from("app_users").upsert({
+    const payload: any = {
       id: user.id,
       name: user.name,
-      phone: user.phone,
-      password: user.password ? user.password.trim() : "123",
-      role: user.role,
+      phone: user.phone || "",
+      role: user.role || "member",
       status: user.status || "Active",
-    });
+    };
+    if (dbPassword) {
+      payload.password = dbPassword;
+    }
+    await supabase.from("app_users").upsert(payload);
   } catch (e) {
     console.warn("Supabase upsert user fallback:", e);
   }

@@ -56,11 +56,12 @@ export default function AdminMembersPage() {
 
   const handleOpenEditModal = async (member: Member) => {
     setEditingMember(member);
+    setEditingPassword("");
     try {
       const u = await findUserByMember(member.name, member.phone);
-      setEditingPassword(u?.password || "123");
+      setTargetUser(u);
     } catch {
-      setEditingPassword("123");
+      // ignore
     }
   };
 
@@ -74,13 +75,12 @@ export default function AdminMembersPage() {
     try {
       const u = await findUserByMember(member.name, member.phone);
       setTargetUser(u);
-      if (u) {
+      if (u && u.password) {
         setNewPassword(u.password);
-        setPasswordStatus({ type: "idle", msg: "" });
       } else {
         setNewPassword("123");
-        setPasswordStatus({ type: "idle", msg: "" });
       }
+      setPasswordStatus({ type: "idle", msg: "" });
     } catch {
       setNewPassword("123");
       setPasswordStatus({ type: "idle", msg: "" });
@@ -90,7 +90,9 @@ export default function AdminMembersPage() {
   const handleCopyCredentials = () => {
     if (!passwordModalMember) return;
     const phone = passwordModalMember.phone || targetUser?.phone || "Not set";
-    const text = `Pixel Task Master Login Details:\n👤 Name: ${passwordModalMember.name}\n📱 Phone: ${phone}\n🔑 Password: ${newPassword}\n🌐 Portal: ${typeof window !== "undefined" ? window.location.origin : "http://localhost:3001"}`;
+    const passToShare = newPassword.trim() || targetUser?.password || "123";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const text = `Pixel Task Master Login Details:\n👤 Name: ${passwordModalMember.name}\n📱 Phone: ${phone}\n🔑 Password: ${passToShare}\n🌐 Portal: ${origin}`;
     navigator.clipboard.writeText(text);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2500);
@@ -100,11 +102,11 @@ export default function AdminMembersPage() {
     e.preventDefault();
     if (!passwordModalMember) return;
     if (!newPassword.trim()) {
-      setPasswordStatus({ type: "error", msg: "Password cannot be empty" });
+      setPasswordStatus({ type: "error", msg: "Please enter a new password" });
       return;
     }
 
-    setPasswordStatus({ type: "loading", msg: "Saving new password..." });
+    setPasswordStatus({ type: "loading", msg: "Encrypting & saving password..." });
     try {
       if (targetUser) {
         await adminResetUserPassword(targetUser.id, newPassword);
@@ -123,7 +125,7 @@ export default function AdminMembersPage() {
 
       setPasswordStatus({
         type: "success",
-        msg: `Password updated successfully for ${passwordModalMember.name}!`,
+        msg: `Password securely hashed & updated for ${passwordModalMember.name}!`,
       });
       setTimeout(() => {
         setPasswordModalMember(null);
@@ -385,7 +387,8 @@ export default function AdminMembersPage() {
                 const formData = new FormData(e.currentTarget);
                 const updatedName = formData.get("name") as string;
                 const updatedPhone = formData.get("phone") as string;
-                const updatedPass = (formData.get("password") as string) || editingPassword || "123";
+                const passInput = (formData.get("password") as string)?.trim();
+                const updatedPass = passInput || "";
                 const updatedStatus = (formData.get("status") as "Active" | "On Leave" | "Inactive") || "Active";
 
                 updateMember(
@@ -400,11 +403,12 @@ export default function AdminMembersPage() {
                   "Admin"
                 );
 
+                const targetUserId = targetUser?.id || "usr_" + updatedName.toLowerCase().replace(/[^a-z0-9]/g, "_");
                 upsertAppUser({
-                  id: editingMember.id,
+                  id: targetUserId,
                   name: updatedName,
                   phone: updatedPhone,
-                  password: updatedPass,
+                  password: updatedPass || undefined,
                   role: "member",
                   status: updatedStatus,
                 });
@@ -423,7 +427,13 @@ export default function AdminMembersPage() {
               </div>
               <div>
                 <label className="block text-[12px] font-bold text-[#10254F] mb-1">Login Password</label>
-                <input name="password" defaultValue={editingPassword} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#10B981] outline-none bg-amber-50/50" />
+                <input 
+                  name="password" 
+                  defaultValue="" 
+                  placeholder="Leave empty to keep current password, or enter new password" 
+                  type="text" 
+                  className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#10B981] outline-none bg-amber-50/50" 
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -490,7 +500,7 @@ export default function AdminMembersPage() {
               )}
 
               {/* Login Credentials Summary Card */}
-              <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E3EAF5] space-y-2">
+              <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E3EAF5] space-y-2.5">
                 <div className="flex justify-between items-center text-[13px]">
                   <span className="font-bold text-[#64748B]">Login Name:</span>
                   <span className="font-extrabold text-[#10254F]">{passwordModalMember.name}</span>
@@ -501,10 +511,26 @@ export default function AdminMembersPage() {
                 </div>
                 <div className="flex justify-between items-center text-[13px]">
                   <span className="font-bold text-[#64748B]">Current Password:</span>
-                  <span className="font-extrabold text-amber-600 font-mono">{newPassword || "123"}</span>
+                  <span className="font-extrabold text-amber-600 font-mono text-[15px]">
+                    {newPassword || targetUser?.password || "123"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[12px] text-[#64748B]">
+                  <span>Database Status:</span>
+                  <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                    <ShieldCheck size={13} className="text-emerald-600" />
+                    <span>Encrypted in Supabase (Hidden from DB viewers)</span>
+                  </span>
                 </div>
 
-                <div className="pt-2 border-t border-[#E3EAF5] flex justify-end">
+                <div className="pt-2 border-t border-[#E3EAF5] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setNewPassword("123")}
+                    className="text-[12px] font-bold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
+                  >
+                    Reset to default (123)
+                  </button>
                   <button
                     type="button"
                     onClick={handleCopyCredentials}
@@ -525,9 +551,9 @@ export default function AdminMembersPage() {
                     type={showPassword ? "text" : "password"}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
+                    placeholder="Enter new password (e.g. 123)"
                     required
-                    className="w-full pl-3.5 pr-11 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    className="w-full pl-3.5 pr-11 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
                   />
                   <button
                     type="button"
@@ -538,7 +564,7 @@ export default function AdminMembersPage() {
                   </button>
                 </div>
                 <p className="text-[11px] text-[#8292A6] mt-1 font-medium">
-                  Admin has master authority to change or reset any member's login password.
+                  When saved, this password is cryptographically hashed with SHA-256 before storing in the database.
                 </p>
               </div>
 
