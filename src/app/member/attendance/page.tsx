@@ -14,7 +14,9 @@ import {
   Send,
   Calendar,
   Navigation,
+  MessageCircle,
 } from "lucide-react";
+import MemberSendReportModal from "@/components/MemberSendReportModal";
 
 function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
@@ -50,6 +52,7 @@ export default function MemberAttendancePage() {
 
   const [gpsStatus, setGpsStatus] = useState<"idle" | "checking" | "matched" | "outside" | "error">("idle");
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
     const updateClock = () => {
@@ -364,17 +367,39 @@ export default function MemberAttendancePage() {
               Check In Now ({liveTimeStr})
             </button>
           ) : !todayRecord.checkOutTime ? (
-            <button
-              onClick={() => checkOutMember(activeMemberName)}
-              className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <LogOut size={18} />
-              Check Out Now ({liveTimeStr})
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={() => checkOutMember(activeMemberName)}
+                className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <LogOut size={18} />
+                Check Out Now ({liveTimeStr})
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-2xl border border-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                title="Send Daily Work Report to Sir (8240017974)"
+              >
+                <MessageCircle size={15} className="text-emerald-600" />
+                <span>Send Today&apos;s Work Report to Sir (WhatsApp)</span>
+              </button>
+            </div>
           ) : (
-            <div className="w-full py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
-              <CheckCircle2 size={18} className="text-emerald-600" />
-              Today&apos;s Attendance Completed!
+            <div className="space-y-3">
+              <div className="w-full py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
+                <CheckCircle2 size={18} className="text-emerald-600" />
+                Today&apos;s Attendance Completed!
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                title="Send Daily Work Report to Sir (8240017974)"
+              >
+                <MessageCircle size={18} />
+                <span>Send Today&apos;s Work Report to Sir (8240017974)</span>
+              </button>
             </div>
           )}
         </div>
@@ -387,7 +412,18 @@ export default function MemberAttendancePage() {
             <Calendar size={18} className="text-blue-600" />
             Attendance History ({activeMemberName})
           </h2>
-          <span className="text-xs font-bold text-gray-500">Total: {myRecords.length} days</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-500">Total: {myRecords.length} days</span>
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer ml-1"
+              title="Send Daily Work Report to Sir (8240017974)"
+            >
+              <MessageCircle size={13} />
+              <span>Report to Sir</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -468,6 +504,12 @@ export default function MemberAttendancePage() {
           </table>
         </div>
       </div>
+      {/* Member Send Report Modal */}
+      <MemberSendReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        memberName={activeMemberName}
+      />
     </div>
   );
 }

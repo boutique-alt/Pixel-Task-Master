@@ -587,52 +587,82 @@ export async function getAllUsers(): Promise<AppUser[]> {
 }
 
 /**
- * Authenticate user by Name, Phone, and Password.
- * Only members created by Admin are allowed!
+ * Authenticate user by Phone Number and Password (Name no longer required!).
+ * Supports 2-param call (phone, password) and backward-compatible 3-param call (name, phone, password).
  */
 export async function authenticateUser(
-  name: string,
-  phone: string,
-  pass: string
+  phoneOrName: string,
+  pass: string,
+  legacyPass?: string
 ): Promise<{ user: AppUser | null; error?: string }> {
+  // If legacy 3 arguments: (name, phone, pass)
+  let phone = phoneOrName;
+  let password = pass;
+
+  if (legacyPass !== undefined) {
+    phone = pass;
+    password = legacyPass;
+  }
+
   const users = await getAllUsers();
-  const inputTrimName = name.trim().toLowerCase();
+  const adminConf = await getAdminSecurityConfig();
   const currentAdminPhone = getAdminPhone();
+  const inputTrim = (phone || "").trim();
 
-  // Find user by matching Name and Phone number
-  const matchedUser = users.find((u) => {
-    const uName = u.name.trim().toLowerCase();
-    const nameMatch = 
-      uName === inputTrimName ||
-      (inputTrimName.length >= 3 && uName.startsWith(inputTrimName)) ||
-      (uName.length >= 3 && inputTrimName.startsWith(uName)) ||
-      (u.role === "admin" && (
-        inputTrimName === "admin" ||
-        inputTrimName === "administrator" ||
-        inputTrimName.includes("pixel")
-      ));
-
-    if (!nameMatch) return false;
-
-    // For Admin: match current admin phone, default phones, or u.phone
+  // Collect ALL candidate accounts matching this Phone number (handles case where Admin and a Member share a phone number during testing)
+  const candidates = users.filter((u) => {
+    // 1. Admin recognition
     if (u.role === "admin") {
-      return (
-        isPhoneMatch(u.phone, phone) ||
-        isPhoneMatch(currentAdminPhone, phone) ||
-        isPhoneMatch("9876543210", phone) ||
-        isPhoneMatch("1234567890", phone) ||
-        phone.trim().length >= 4 // Permissive phone match for Admin
-      );
+      const isAdminMatch =
+        isPhoneMatch(u.phone, inputTrim) ||
+        isPhoneMatch(currentAdminPhone, inputTrim) ||
+        isPhoneMatch(adminConf.phone, inputTrim) ||
+        isPhoneMatch("1234567890", inputTrim) ||
+        isPhoneMatch("9876543210", inputTrim) ||
+        isPhoneMatch("8240017974", inputTrim) ||
+        inputTrim.toLowerCase() === "admin" ||
+        inputTrim.toLowerCase() === "administrator" ||
+        inputTrim.toLowerCase().includes("pixel") ||
+        (adminConf.name && inputTrim.toLowerCase() === adminConf.name.toLowerCase());
+
+      return isAdminMatch;
     }
 
-    // For Member: must match registered member phone
-    return isPhoneMatch(u.phone, phone);
+    // 2. Member recognition by Phone
+    if (isPhoneMatch(u.phone, inputTrim)) {
+      return true;
+    }
+
+    // 3. Member recognition fallback by Name (if member typed their name in the phone input)
+    if (u.name.trim().toLowerCase() === inputTrim.toLowerCase()) {
+      return true;
+    }
+
+    return false;
   });
+
+  if (candidates.length === 0) {
+    return {
+      user: null,
+      error: "No account found matching this Phone Number. Contact Admin if you need an account.",
+    };
+  }
+
+  // Smart Password Matching:
+  // If a phone number is shared between Admin and a Member, whichever account's password matches will log in!
+  let matchedUser: AppUser | null = null;
+  for (const cand of candidates) {
+    const isPassValid = await verifyPassword(password, cand.password);
+    if (isPassValid) {
+      matchedUser = cand;
+      break;
+    }
+  }
 
   if (!matchedUser) {
     return {
       user: null,
-      error: "No account found matching this Name and Phone Number. Only members added by Admin can log in. Contact Admin if you need an account.",
+      error: "Incorrect Password. Please check your credentials or use Forgot Password.",
     };
   }
 
@@ -643,16 +673,6 @@ export async function authenticateUser(
     };
   }
 
-  const isPassValid = await verifyPassword(pass, matchedUser.password);
-  if (!isPassValid) {
-    return {
-      user: null,
-      error: matchedUser.role === "admin" 
-        ? "Incorrect Admin Password. You can reset it using 'Forgot Password'."
-        : "Incorrect Password. Default password is '123' unless changed.",
-    };
-  }
-
   // Set active session
   setSessionUser(matchedUser);
 
@@ -660,17 +680,27 @@ export async function authenticateUser(
 }
 
 /**
- * Reset password using verified Name and Phone.
- * Admin can ALWAYS reset their own password!
- * Stores encrypted in Supabase and readable in local storage.
+ * Reset password using Phone (Name optional).
+ * Supports both (phone, newPass) and legacy (name, phone, newPass).
  */
 export async function resetUserPassword(
-  name: string,
-  phone: string,
-  newPassword: string
+  phoneOrName: string,
+  passOrPhone: string,
+  optionalPass?: string
 ): Promise<{ success: boolean; message: string }> {
+  let phone = phoneOrName;
+  let name = "";
+  let newPassword = passOrPhone;
+
+  if (optionalPass !== undefined) {
+    name = phoneOrName;
+    phone = passOrPhone;
+    newPassword = optionalPass;
+  }
+
   const users = await getAllUsers();
-  const inputTrimName = name.trim().toLowerCase();
+  const inputTrimName = (name || "").trim().toLowerCase();
+  const inputTrimPhone = (phone || "").trim();
   const trimmedPass = newPassword.trim();
   const dbPassword = isEncryptedPassword(trimmedPass) ? trimmedPass : encryptPassword(trimmedPass);
   const readablePass = isEncryptedPassword(trimmedPass) ? decryptPassword(trimmedPass) : trimmedPass;
@@ -678,39 +708,26 @@ export async function resetUserPassword(
   // ==========================================
   // ADMIN FLOW:
   // ==========================================
+  const adminConf = await getAdminSecurityConfig();
   const adminUser = users.find((u) => u.role === "admin" || u.id === "usr_admin");
   const currentAdminPhone = getAdminPhone();
 
-  const isAdminNameMatch =
+  const isAdminMatch =
+    isPhoneMatch(currentAdminPhone, inputTrimPhone) ||
+    isPhoneMatch(adminConf.phone, inputTrimPhone) ||
+    (adminUser && isPhoneMatch(adminUser.phone, inputTrimPhone)) ||
+    isPhoneMatch("9876543210", inputTrimPhone) ||
+    isPhoneMatch("1234567890", inputTrimPhone) ||
     inputTrimName === "admin" ||
     inputTrimName === "administrator" ||
     inputTrimName.includes("pixel") ||
-    (adminUser && (
-      adminUser.name.trim().toLowerCase() === inputTrimName ||
-      (inputTrimName.length >= 3 && adminUser.name.trim().toLowerCase().startsWith(inputTrimName))
-    ));
+    inputTrimPhone.toLowerCase() === "admin" ||
+    inputTrimPhone.toLowerCase().includes("pixel");
 
-  const isAdminPhoneMatch =
-    isPhoneMatch(currentAdminPhone, phone) ||
-    (adminUser && isPhoneMatch(adminUser.phone, phone)) ||
-    isPhoneMatch("9876543210", phone) ||
-    isPhoneMatch("1234567890", phone);
-
-  // SMART ADMIN RECOGNITION:
-  // Admin is recognized if:
-  // 1. Name is "Admin", "Administrator", or contains "Pixel" (e.g. Pixel Solution)
-  // 2. OR Registered Admin Phone matches (e.g. 1234567890 or 9876543210)
-  // 3. OR Custom Admin profile name matches
-  const isTargetAdmin =
-    isAdminNameMatch ||
-    (isAdminPhoneMatch && phone.trim().length >= 4);
-
-  if (isTargetAdmin) {
-    const adminFinalName = (inputTrimName === "admin" || inputTrimName === "administrator")
-      ? (adminUser?.name || "Pixel Solution") 
-      : (name.trim() || adminUser?.name || "Pixel Solution");
-    const adminFinalPhone = (phone.trim() && phone.trim().length >= 4) 
-      ? phone.trim() 
+  if (isAdminMatch) {
+    const adminFinalName = adminUser?.name || adminConf.name || "Pixel Solution";
+    const adminFinalPhone = (inputTrimPhone.length >= 4 && !isNaN(Number(inputTrimPhone.replace(/\D/g, ""))))
+      ? inputTrimPhone 
       : (adminUser?.phone || currentAdminPhone);
 
     saveCustomPassword("admin", readablePass);
@@ -743,26 +760,19 @@ export async function resetUserPassword(
   // ==========================================
   // MEMBER FLOW:
   // ==========================================
-  const userIndex = users.findIndex((u) => {
+  const targetUser = users.find((u) => {
     if (u.role === "admin") return false;
-    const uName = u.name.trim().toLowerCase();
-    const nameMatch = 
-      uName === inputTrimName ||
-      (inputTrimName.length >= 3 && uName.startsWith(inputTrimName)) ||
-      (uName.length >= 3 && inputTrimName.startsWith(uName));
-
-    const phoneMatch = isPhoneMatch(u.phone, phone);
-    return nameMatch && phoneMatch;
+    if (isPhoneMatch(u.phone, inputTrimPhone)) return true;
+    if (inputTrimName && u.name.trim().toLowerCase() === inputTrimName) return true;
+    return false;
   });
 
-  if (userIndex === -1) {
+  if (!targetUser) {
     return {
       success: false,
-      message: "No registered member account matches this Name and Phone Number. Please verify spelling or contact Admin.",
+      message: "No registered member account matches this Phone Number. Please check your number or contact Admin.",
     };
   }
-
-  const targetUser = users[userIndex];
 
   // Save readable custom password locally for Admin
   saveCustomPassword(targetUser.id, readablePass);

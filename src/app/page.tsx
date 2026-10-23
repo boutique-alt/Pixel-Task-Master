@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { 
-  User, 
   Phone, 
   Lock, 
   Eye, 
@@ -33,21 +32,19 @@ export default function LoginPage() {
   const router = useRouter();
   const { setCurrentMember } = useCRM();
 
-  // Login form state
-  const [name, setName] = useState("");
+  // Login form state (Only Phone & Password!)
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Forgot password modal state (PIN-ONLY Verification)
+  // Forgot password modal state (Phone + PIN Verification)
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [forgotStep, setForgotStep] = useState<1 | 2>(1);
   const [forgotAccount, setForgotAccount] = useState<AppUser | null>(null);
   
-  // Step 1: Identity & PIN inputs
-  const [forgotName, setForgotName] = useState("");
+  // Step 1: Phone & PIN inputs
   const [forgotPhone, setForgotPhone] = useState("");
   const [masterPinInput, setMasterPinInput] = useState("");
   const [showMasterPin, setShowMasterPin] = useState(false);
@@ -67,10 +64,6 @@ export default function LoginPage() {
     e.preventDefault();
     setErrorMsg("");
 
-    if (!name.trim()) {
-      setErrorMsg("Please enter your registered Name");
-      return;
-    }
     if (!phone.trim()) {
       setErrorMsg("Please enter your registered Phone Number");
       return;
@@ -82,7 +75,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const result = await authenticateUser(name, phone, password);
+      const result = await authenticateUser(phone.trim(), password.trim());
       if (result.error || !result.user) {
         setErrorMsg(result.error || "Authentication failed. Please check your credentials.");
         setIsLoading(false);
@@ -107,7 +100,6 @@ export default function LoginPage() {
     setIsForgotModalOpen(false);
     setForgotStep(1);
     setForgotAccount(null);
-    setForgotName("");
     setForgotPhone("");
     setMasterPinInput("");
     setShowMasterPin(false);
@@ -121,17 +113,16 @@ export default function LoginPage() {
   const openForgotModal = () => {
     setIsForgotModalOpen(true);
     setForgotStep(1);
-    setForgotName(name || "");
     setForgotPhone(phone || "");
     setMasterPinInput("");
     setForgotStatus({ type: "idle", msg: "" });
   };
 
-  // Step 1: Verify Account Identity AND Master Security PIN
+  // Step 1: Verify Phone Number AND Master Security PIN
   const handleVerifyAccountAndPin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotName.trim() || !forgotPhone.trim()) {
-      setForgotStatus({ type: "error", msg: "Please enter both your registered Name and Phone number." });
+    if (!forgotPhone.trim()) {
+      setForgotStatus({ type: "error", msg: "Please enter your registered Phone number." });
       return;
     }
     if (!masterPinInput.trim()) {
@@ -139,22 +130,19 @@ export default function LoginPage() {
       return;
     }
 
-    setForgotStatus({ type: "loading", msg: "Verifying account & Security PIN..." });
+    setForgotStatus({ type: "loading", msg: "Verifying phone & Security PIN..." });
 
     try {
       const users = await getAllUsers();
       const adminConf = await getAdminSecurityConfig();
-      const inputName = forgotName.trim().toLowerCase();
       const inputPhone = forgotPhone.trim();
 
       const isAdmin = 
-        inputName === "admin" ||
-        inputName === "administrator" ||
-        inputName.includes("pixel") ||
-        inputName === (adminConf.name || "").toLowerCase() ||
         isPhoneMatch(adminConf.phone, inputPhone) ||
         isPhoneMatch("1234567890", inputPhone) ||
-        isPhoneMatch("9876543210", inputPhone);
+        isPhoneMatch("9876543210", inputPhone) ||
+        inputPhone.toLowerCase() === "admin" ||
+        inputPhone.toLowerCase().includes("pixel");
 
       let target: AppUser | null = null;
       if (isAdmin) {
@@ -169,17 +157,14 @@ export default function LoginPage() {
       } else {
         target = users.find(u => {
           if (u.role === "admin") return false;
-          const nameMatch = u.name.trim().toLowerCase() === inputName ||
-            (inputName.length >= 3 && u.name.toLowerCase().startsWith(inputName));
-          const phoneMatch = isPhoneMatch(u.phone, inputPhone);
-          return nameMatch && phoneMatch;
+          return isPhoneMatch(u.phone, inputPhone) || (inputPhone.length >= 3 && u.name.toLowerCase() === inputPhone.toLowerCase());
         }) || null;
       }
 
       if (!target) {
         setForgotStatus({
           type: "error",
-          msg: "No registered account matches this Name and Phone Number. Please verify spelling or contact Admin.",
+          msg: "No registered account matches this Phone Number. Please check your number or contact Admin.",
         });
         return;
       }
@@ -194,7 +179,7 @@ export default function LoginPage() {
         return;
       }
 
-      // Account & PIN Verified! Move to Step 2
+      // Phone & PIN Verified! Move to Step 2
       setForgotAccount(target);
       setForgotStatus({ type: "idle", msg: "" });
       setForgotStep(2);
@@ -218,12 +203,10 @@ export default function LoginPage() {
     setForgotStatus({ type: "loading", msg: "Updating your password..." });
 
     try {
-      const targetName = forgotAccount?.name || forgotName;
       const targetPhone = forgotAccount?.phone || forgotPhone;
-      const res = await resetUserPassword(targetName, targetPhone, forgotNewPass);
+      const res = await resetUserPassword(targetPhone, forgotNewPass);
       if (res.success) {
         setForgotStatus({ type: "success", msg: res.message });
-        setName(targetName);
         setPhone(targetPhone);
         setPassword(forgotNewPass);
         setTimeout(() => {
@@ -261,6 +244,9 @@ export default function LoginPage() {
                 />
               </div>
             </div>
+            <p className="text-[13px] text-[#64748B] font-medium mt-1">
+              Sign in with your registered phone number
+            </p>
           </div>
 
           {/* Error Banner */}
@@ -271,28 +257,8 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Login Form */}
+          {/* Login Form (Clean: Phone & Password Only!) */}
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Name Input */}
-            <div>
-              <label className="block text-[12px] font-bold text-[#10254F] uppercase tracking-wider mb-1.5">
-                Registered Name
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8292A6]">
-                  <User size={18} />
-                </div>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Pixel Solution or Rahim"
-                  required
-                  className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
-                />
-              </div>
-            </div>
-
             {/* Phone Input */}
             <div>
               <label className="block text-[12px] font-bold text-[#10254F] uppercase tracking-wider mb-1.5">
@@ -308,7 +274,8 @@ export default function LoginPage() {
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g. 1234567890 or +880 1711-223344"
                   required
-                  className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
+                  autoFocus
+                  className="w-full pl-11 pr-4 py-3.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
                 />
               </div>
             </div>
@@ -337,7 +304,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
-                  className="w-full pl-11 pr-12 py-3 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
+                  className="w-full pl-11 pr-12 py-3.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
                 />
                 <button
                   type="button"
@@ -354,7 +321,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 bg-[#1677FF] hover:bg-[#1260CC] text-white py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(22,119,255,0.35)] cursor-pointer disabled:opacity-60"
+              className="w-full mt-3 bg-[#1677FF] hover:bg-[#1260CC] text-white py-3.5 rounded-xl font-bold text-[15px] transition-all flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(22,119,255,0.35)] cursor-pointer disabled:opacity-60"
             >
               {isLoading ? (
                 <>
@@ -376,7 +343,7 @@ export default function LoginPage() {
         <InstallAppPrompt variant="banner" />
       </div>
 
-      {/* PIN-Protected Forgot Password Modal (OTP Removed Completely) */}
+      {/* PIN-Protected Forgot Password Modal (No Name Option!) */}
       {isForgotModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-[26px] shadow-2xl max-w-md w-full overflow-hidden border border-[#E3EAF5]">
@@ -405,7 +372,7 @@ export default function LoginPage() {
                     {forgotStep === 1 ? "Reset with Security PIN" : "Set New Password"}
                   </h3>
                   <p className="text-[11px] text-[#64748B] font-medium">
-                    {forgotStep === 1 ? "Step 1 of 2: Verify identity & Master PIN" : "Step 2 of 2: Enter new password"}
+                    {forgotStep === 1 ? "Step 1 of 2: Verify Phone & Master PIN" : "Step 2 of 2: Enter new password"}
                   </p>
                 </div>
               </div>
@@ -442,39 +409,18 @@ export default function LoginPage() {
               )}
 
               {/* ========================================================= */}
-              {/* STEP 1: IDENTIFY ACCOUNT & MASTER PIN VERIFICATION        */}
+              {/* STEP 1: PHONE & MASTER PIN VERIFICATION (NO NAME)         */}
               {/* ========================================================= */}
               {forgotStep === 1 && (
                 <form onSubmit={handleVerifyAccountAndPin} className="space-y-3.5">
-                  {(forgotName.trim().toLowerCase() === "admin" || 
-                    forgotName.trim().toLowerCase() === "administrator" || 
-                    forgotName.trim().toLowerCase().includes("pixel") ||
-                    isPhoneMatch("9876543210", forgotPhone) ||
-                    isPhoneMatch("1234567890", forgotPhone)) && (
+                  {(isPhoneMatch("9876543210", forgotPhone) ||
+                    isPhoneMatch("1234567890", forgotPhone) ||
+                    forgotPhone.trim().toLowerCase() === "admin") && (
                     <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-[12px] font-semibold flex items-center gap-2">
                       <ShieldCheck size={16} className="text-[#1677FF] shrink-0" />
                       <span>Admin Account: Enter your Master PIN to authorize reset.</span>
                     </div>
                   )}
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
-                      Registered Full Name
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8292A6]">
-                        <User size={16} />
-                      </div>
-                      <input
-                        type="text"
-                        value={forgotName}
-                        onChange={(e) => setForgotName(e.target.value)}
-                        placeholder="e.g. Pixel Solution, Admin or Rahim"
-                        required
-                        className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
-                      />
-                    </div>
-                  </div>
 
                   <div>
                     <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
@@ -490,6 +436,7 @@ export default function LoginPage() {
                         onChange={(e) => setForgotPhone(e.target.value)}
                         placeholder="e.g. 1234567890 or +880 1711-223344"
                         required
+                        autoFocus
                         className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
                       />
                     </div>
@@ -526,7 +473,7 @@ export default function LoginPage() {
                       </button>
                     </div>
                     <p className="text-[11px] text-[#64748B] mt-1 font-medium leading-tight">
-                      Default PIN is <code className="bg-[#E2E8F0] px-1 py-0.5 rounded font-mono font-bold text-[#10254F]">123456</code> (Admin can change it anytime in Profile Settings).
+                      Default PIN is <code className="bg-[#E2E8F0] px-1 py-0.5 rounded font-mono font-bold text-[#10254F]">123456</code> (Configurable in Admin Settings).
                     </p>
                   </div>
 
@@ -557,7 +504,7 @@ export default function LoginPage() {
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-800 text-[12px] font-bold">
                       <CheckCircle2 size={17} className="text-emerald-600 shrink-0" />
-                      <span>PIN Verified for {forgotAccount?.name}!</span>
+                      <span>PIN Verified for {forgotAccount?.name || forgotPhone}!</span>
                     </div>
                     <span className="text-[10px] bg-emerald-200 text-emerald-900 font-extrabold uppercase px-2 py-0.5 rounded-full">
                       Authorized

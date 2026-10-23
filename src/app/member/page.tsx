@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, MessageCircle } from "lucide-react";
 import ClientTable from "@/components/ClientTable";
 import { useCRM } from "@/context/CRMContext";
+import MemberSendReportModal from "@/components/MemberSendReportModal";
 
 export default function MemberDashboard() {
   const { clients, currentMember, leaveTypes, leaveRequests, attendanceRecords, attendanceConfig, hrNotices, updateStatus, updateComment } = useCRM();
@@ -12,6 +13,7 @@ export default function MemberDashboard() {
   const [viewFilter, setViewFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [progressFilter, setProgressFilter] = useState("today");
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const activeMemberName = currentMember || "Rahim";
   
@@ -317,6 +319,15 @@ export default function MemberDashboard() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                       {isCheckedIn ? "Check Out" : isCheckedOut ? "View Attendance" : "Check In"}
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => setIsReportModalOpen(true)}
+                      className="w-full mt-2 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold rounded-[14px] flex items-center justify-center gap-1.5 transition-colors border border-emerald-200 cursor-pointer shadow-2xs"
+                      title="Send Daily Work & Attendance Report to Sir (8240017974)"
+                    >
+                      <MessageCircle size={13} className="text-emerald-600" />
+                      <span>Send Report to Sir</span>
+                    </button>
                   </div>
                 </>
               );
@@ -510,6 +521,16 @@ export default function MemberDashboard() {
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
               <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[12px] font-bold transition-all shadow-sm cursor-pointer whitespace-nowrap"
+              title="Send Today's Work Report to Sir (8240017974)"
+            >
+              <MessageCircle size={15} />
+              <span>Send Report to Sir</span>
+            </button>
           </div>
         </div>
         <ClientTable 
@@ -519,6 +540,13 @@ export default function MemberDashboard() {
           onCommentChange={handleCommentChange}
         />
       </div>
+
+      {/* Member Send Report to Sir Modal */}
+      <MemberSendReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        memberName={activeMemberName}
+      />
     </div>
   );
 }
