@@ -11,14 +11,21 @@ import {
   EyeOff, 
   LogIn, 
   ShieldCheck, 
-  UserCheck, 
   KeyRound, 
   AlertCircle, 
   CheckCircle2, 
   X,
-  Sparkles
+  ArrowLeft
 } from "lucide-react";
-import { authenticateUser, resetUserPassword, INITIAL_APP_USERS } from "@/lib/authService";
+import { 
+  authenticateUser, 
+  resetUserPassword, 
+  isPhoneMatch, 
+  getAllUsers,
+  getAdminSecurityConfig,
+  verifyAdminMasterPin,
+  AppUser
+} from "@/lib/authService";
 import { useCRM } from "@/context/CRMContext";
 import InstallAppPrompt from "@/components/InstallAppPrompt";
 
@@ -34,12 +41,23 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Forgot password modal state
+  // Forgot password modal state (PIN-ONLY Verification)
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotAccount, setForgotAccount] = useState<AppUser | null>(null);
+  
+  // Step 1: Identity & PIN inputs
   const [forgotName, setForgotName] = useState("");
   const [forgotPhone, setForgotPhone] = useState("");
+  const [masterPinInput, setMasterPinInput] = useState("");
+  const [showMasterPin, setShowMasterPin] = useState(false);
+  
+  // Step 2: New password inputs
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotConfirmPass, setForgotConfirmPass] = useState("");
+  const [showForgotPass, setShowForgotPass] = useState(false);
+  const [showForgotConfirm, setShowForgotConfirm] = useState(false);
+  
   const [forgotStatus, setForgotStatus] = useState<{ type: "idle" | "loading" | "success" | "error"; msg: string }>({
     type: "idle",
     msg: "",
@@ -85,12 +103,109 @@ export default function LoginPage() {
     }
   };
 
-  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+  const closeForgotModal = () => {
+    setIsForgotModalOpen(false);
+    setForgotStep(1);
+    setForgotAccount(null);
+    setForgotName("");
+    setForgotPhone("");
+    setMasterPinInput("");
+    setShowMasterPin(false);
+    setForgotNewPass("");
+    setForgotConfirmPass("");
+    setShowForgotPass(false);
+    setShowForgotConfirm(false);
+    setForgotStatus({ type: "idle", msg: "" });
+  };
+
+  const openForgotModal = () => {
+    setIsForgotModalOpen(true);
+    setForgotStep(1);
+    setForgotName(name || "");
+    setForgotPhone(phone || "");
+    setMasterPinInput("");
+    setForgotStatus({ type: "idle", msg: "" });
+  };
+
+  // Step 1: Verify Account Identity AND Master Security PIN
+  const handleVerifyAccountAndPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotName.trim() || !forgotPhone.trim()) {
-      setForgotStatus({ type: "error", msg: "Please provide both your registered Name and Phone number." });
+      setForgotStatus({ type: "error", msg: "Please enter both your registered Name and Phone number." });
       return;
     }
+    if (!masterPinInput.trim()) {
+      setForgotStatus({ type: "error", msg: "Master Security PIN is required to reset password." });
+      return;
+    }
+
+    setForgotStatus({ type: "loading", msg: "Verifying account & Security PIN..." });
+
+    try {
+      const users = await getAllUsers();
+      const adminConf = await getAdminSecurityConfig();
+      const inputName = forgotName.trim().toLowerCase();
+      const inputPhone = forgotPhone.trim();
+
+      const isAdmin = 
+        inputName === "admin" ||
+        inputName === "administrator" ||
+        inputName.includes("pixel") ||
+        inputName === (adminConf.name || "").toLowerCase() ||
+        isPhoneMatch(adminConf.phone, inputPhone) ||
+        isPhoneMatch("1234567890", inputPhone) ||
+        isPhoneMatch("9876543210", inputPhone);
+
+      let target: AppUser | null = null;
+      if (isAdmin) {
+        target = users.find(u => u.role === "admin") || {
+          id: "usr_admin",
+          name: adminConf.name || "Pixel Solution",
+          phone: adminConf.phone || "1234567890",
+          password: "admin",
+          role: "admin",
+          status: "Active"
+        };
+      } else {
+        target = users.find(u => {
+          if (u.role === "admin") return false;
+          const nameMatch = u.name.trim().toLowerCase() === inputName ||
+            (inputName.length >= 3 && u.name.toLowerCase().startsWith(inputName));
+          const phoneMatch = isPhoneMatch(u.phone, inputPhone);
+          return nameMatch && phoneMatch;
+        }) || null;
+      }
+
+      if (!target) {
+        setForgotStatus({
+          type: "error",
+          msg: "No registered account matches this Name and Phone Number. Please verify spelling or contact Admin.",
+        });
+        return;
+      }
+
+      // Verify Master Security PIN
+      const isPinValid = await verifyAdminMasterPin(masterPinInput.trim());
+      if (!isPinValid) {
+        setForgotStatus({
+          type: "error",
+          msg: "Incorrect Master Security PIN. Only users with the authorized PIN (set in Admin Settings) can reset passwords.",
+        });
+        return;
+      }
+
+      // Account & PIN Verified! Move to Step 2
+      setForgotAccount(target);
+      setForgotStatus({ type: "idle", msg: "" });
+      setForgotStep(2);
+    } catch (err: any) {
+      setForgotStatus({ type: "error", msg: err?.message || "Failed to verify details." });
+    }
+  };
+
+  // Step 2: Set New Password
+  const handleFinalPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!forgotNewPass || forgotNewPass.length < 3) {
       setForgotStatus({ type: "error", msg: "Password must be at least 3 characters long." });
       return;
@@ -100,19 +215,19 @@ export default function LoginPage() {
       return;
     }
 
-    setForgotStatus({ type: "loading", msg: "Verifying account details..." });
+    setForgotStatus({ type: "loading", msg: "Updating your password..." });
 
     try {
-      const res = await resetUserPassword(forgotName, forgotPhone, forgotNewPass);
+      const targetName = forgotAccount?.name || forgotName;
+      const targetPhone = forgotAccount?.phone || forgotPhone;
+      const res = await resetUserPassword(targetName, targetPhone, forgotNewPass);
       if (res.success) {
         setForgotStatus({ type: "success", msg: res.message });
-        // Auto-fill login fields with new password
-        setName(forgotName);
-        setPhone(forgotPhone);
+        setName(targetName);
+        setPhone(targetPhone);
         setPassword(forgotNewPass);
         setTimeout(() => {
-          setIsForgotModalOpen(false);
-          setForgotStatus({ type: "idle", msg: "" });
+          closeForgotModal();
         }, 1800);
       } else {
         setForgotStatus({ type: "error", msg: res.message });
@@ -158,37 +273,40 @@ export default function LoginPage() {
 
           {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-4">
-            
             {/* Name Input */}
             <div>
-              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase tracking-wider">
-                Full Name
+              <label className="block text-[12px] font-bold text-[#10254F] uppercase tracking-wider mb-1.5">
+                Registered Name
               </label>
               <div className="relative">
-                <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8292A6]" />
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8292A6]">
+                  <User size={18} />
+                </div>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Admin or Rahim"
+                  placeholder="e.g. Pixel Solution or Rahim"
                   required
                   className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
                 />
               </div>
             </div>
 
-            {/* Phone Number Input */}
+            {/* Phone Input */}
             <div>
-              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase tracking-wider">
+              <label className="block text-[12px] font-bold text-[#10254F] uppercase tracking-wider mb-1.5">
                 Phone Number
               </label>
               <div className="relative">
-                <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8292A6]" />
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8292A6]">
+                  <Phone size={18} />
+                </div>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 9876543210 or 01711223344"
+                  placeholder="e.g. 1234567890 or +880 1711-223344"
                   required
                   className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-semibold text-[#10254F] placeholder:text-[#8292A6] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white transition-all shadow-sm"
                 />
@@ -198,23 +316,21 @@ export default function LoginPage() {
             {/* Password Input */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-[12px] font-bold text-[#10254F] uppercase tracking-wider">
+                <label className="text-[12px] font-bold text-[#10254F] uppercase tracking-wider">
                   Password
                 </label>
                 <button
                   type="button"
-                  onClick={() => {
-                    setForgotName(name || "Admin");
-                    setForgotPhone(phone || "");
-                    setIsForgotModalOpen(true);
-                  }}
-                  className="text-[12px] font-bold text-[#1677FF] hover:text-[#0D418D] transition-colors cursor-pointer"
+                  onClick={openForgotModal}
+                  className="text-[12px] font-bold text-[#1677FF] hover:underline cursor-pointer"
                 >
                   Forgot Password?
                 </button>
               </div>
               <div className="relative">
-                <Lock size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8292A6]" />
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8292A6]">
+                  <Lock size={18} />
+                </div>
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
@@ -260,126 +376,266 @@ export default function LoginPage() {
         <InstallAppPrompt variant="banner" />
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* PIN-Protected Forgot Password Modal (OTP Removed Completely) */}
       {isForgotModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-[26px] shadow-2xl max-w-md w-full overflow-hidden border border-[#E3EAF5]">
-            <div className="p-6 border-b border-[#E3EAF5] bg-[#F8FAFC] flex justify-between items-center">
+            
+            {/* Modal Header */}
+            <div className="p-5 border-b border-[#E3EAF5] bg-[#F8FAFC] flex justify-between items-center">
               <div className="flex items-center gap-2.5">
+                {forgotStep === 2 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotStatus({ type: "idle", msg: "" });
+                      setForgotStep(1);
+                    }}
+                    className="p-1.5 -ml-1 text-[#64748B] hover:text-[#10254F] hover:bg-white rounded-lg transition-colors border border-transparent hover:border-[#E3EAF5]"
+                    title="Back to previous step"
+                  >
+                    <ArrowLeft size={17} />
+                  </button>
+                )}
                 <div className="w-9 h-9 rounded-xl bg-[#1677FF]/10 text-[#1677FF] flex items-center justify-center">
                   <KeyRound size={18} />
                 </div>
                 <div>
-                  <h3 className="text-[17px] font-extrabold text-[#10254F]">Reset Your Password</h3>
-                  <p className="text-[11px] text-[#64748B] font-medium">Verify your registered Name & Phone</p>
+                  <h3 className="text-[16px] font-extrabold text-[#10254F] leading-tight">
+                    {forgotStep === 1 ? "Reset with Security PIN" : "Set New Password"}
+                  </h3>
+                  <p className="text-[11px] text-[#64748B] font-medium">
+                    {forgotStep === 1 ? "Step 1 of 2: Verify identity & Master PIN" : "Step 2 of 2: Enter new password"}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setIsForgotModalOpen(false);
-                  setForgotStatus({ type: "idle", msg: "" });
-                }}
-                className="text-[#64748B] hover:text-[#10254F] p-1 rounded-lg"
+                onClick={closeForgotModal}
+                className="text-[#64748B] hover:text-[#10254F] p-1.5 rounded-lg hover:bg-white transition-colors"
               >
-                <X size={20} />
+                <X size={19} />
               </button>
             </div>
 
-            <form onSubmit={handleForgotPasswordSubmit} className="p-6 space-y-4">
+            {/* Step Progress Indicators */}
+            <div className="px-6 pt-4 pb-1">
+              <div className="grid grid-cols-2 gap-2">
+                <div className={`h-1.5 rounded-full transition-all ${forgotStep >= 1 ? "bg-[#1677FF]" : "bg-[#E3EAF5]"}`} />
+                <div className={`h-1.5 rounded-full transition-all ${forgotStep >= 2 ? "bg-[#1677FF]" : "bg-[#E3EAF5]"}`} />
+              </div>
+            </div>
+
+            <div className="p-6 pt-3 space-y-4">
+              {/* Alert Status */}
               {forgotStatus.type === "error" && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-700 text-[12px] font-bold">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{forgotStatus.msg}</span>
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-red-700 text-[12px] font-bold">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-500" />
+                  <span className="leading-tight">{forgotStatus.msg}</span>
                 </div>
               )}
               {forgotStatus.type === "success" && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-[12px] font-bold">
-                  <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
-                  <span>{forgotStatus.msg}</span>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-emerald-800 text-[12px] font-bold">
+                  <CheckCircle2 size={16} className="shrink-0 mt-0.5 text-emerald-600" />
+                  <span className="leading-tight">{forgotStatus.msg}</span>
                 </div>
               )}
 
-              {forgotName.trim().toLowerCase() === "admin" && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-[12px] font-semibold flex items-center gap-2">
-                  <ShieldCheck size={16} className="text-[#1677FF] shrink-0" />
-                  <span>Admin Mode: Enter any phone number to link it to your Admin account (Default phone: 9876543210).</span>
-                </div>
+              {/* ========================================================= */}
+              {/* STEP 1: IDENTIFY ACCOUNT & MASTER PIN VERIFICATION        */}
+              {/* ========================================================= */}
+              {forgotStep === 1 && (
+                <form onSubmit={handleVerifyAccountAndPin} className="space-y-3.5">
+                  {(forgotName.trim().toLowerCase() === "admin" || 
+                    forgotName.trim().toLowerCase() === "administrator" || 
+                    forgotName.trim().toLowerCase().includes("pixel") ||
+                    isPhoneMatch("9876543210", forgotPhone) ||
+                    isPhoneMatch("1234567890", forgotPhone)) && (
+                    <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-[12px] font-semibold flex items-center gap-2">
+                      <ShieldCheck size={16} className="text-[#1677FF] shrink-0" />
+                      <span>Admin Account: Enter your Master PIN to authorize reset.</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
+                      Registered Full Name
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8292A6]">
+                        <User size={16} />
+                      </div>
+                      <input
+                        type="text"
+                        value={forgotName}
+                        onChange={(e) => setForgotName(e.target.value)}
+                        placeholder="e.g. Pixel Solution, Admin or Rahim"
+                        required
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
+                      Registered Phone Number
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8292A6]">
+                        <Phone size={16} />
+                      </div>
+                      <input
+                        type="text"
+                        value={forgotPhone}
+                        onChange={(e) => setForgotPhone(e.target.value)}
+                        placeholder="e.g. 1234567890 or +880 1711-223344"
+                        required
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Master Security PIN Input */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[11px] font-bold text-[#10254F] uppercase flex items-center gap-1.5">
+                        <KeyRound size={13} className="text-[#1677FF]" />
+                        Master Security PIN
+                      </label>
+                      <span className="text-[10px] text-[#64748B] font-medium">Set in Admin Settings</span>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8292A6]">
+                        <ShieldCheck size={16} />
+                      </div>
+                      <input
+                        type={showMasterPin ? "text" : "password"}
+                        value={masterPinInput}
+                        onChange={(e) => setMasterPinInput(e.target.value)}
+                        placeholder="Enter 4-6 digit Master PIN"
+                        required
+                        className="w-full pl-9 pr-10 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[14px] font-bold tracking-widest text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowMasterPin(!showMasterPin)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8292A6] hover:text-[#10254F] p-1"
+                        aria-label={showMasterPin ? "Hide PIN" : "Show PIN"}
+                      >
+                        {showMasterPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[#64748B] mt-1 font-medium leading-tight">
+                      Default PIN is <code className="bg-[#E2E8F0] px-1 py-0.5 rounded font-mono font-bold text-[#10254F]">123456</code> (Admin can change it anytime in Profile Settings).
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={closeForgotModal}
+                      className="flex-1 py-2.5 border border-[#E3EAF5] rounded-xl font-bold text-[13px] text-[#64748B] hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotStatus.type === "loading"}
+                      className="flex-1 py-2.5 bg-[#1677FF] hover:bg-[#1260CC] text-white rounded-xl font-bold text-[13px] transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {forgotStatus.type === "loading" ? "Verifying..." : "Verify PIN →"}
+                    </button>
+                  </div>
+                </form>
               )}
 
-              <div>
-                <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
-                  Registered Full Name
-                </label>
-                <input
-                  type="text"
-                  value={forgotName}
-                  onChange={(e) => setForgotName(e.target.value)}
-                  placeholder="e.g. Rahim or Admin"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
-                />
-              </div>
+              {/* ========================================================= */}
+              {/* STEP 2: SET NEW PASSWORD                                  */}
+              {/* ========================================================= */}
+              {forgotStep === 2 && (
+                <form onSubmit={handleFinalPasswordReset} className="space-y-4">
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-800 text-[12px] font-bold">
+                      <CheckCircle2 size={17} className="text-emerald-600 shrink-0" />
+                      <span>PIN Verified for {forgotAccount?.name}!</span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-200 text-emerald-900 font-extrabold uppercase px-2 py-0.5 rounded-full">
+                      Authorized
+                    </span>
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
-                  Registered Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={forgotPhone}
-                  onChange={(e) => setForgotPhone(e.target.value)}
-                  placeholder="e.g. +880 1711-223344 or 9876543210"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8292A6]">
+                        <Lock size={16} />
+                      </div>
+                      <input
+                        type={showForgotPass ? "text" : "password"}
+                        value={forgotNewPass}
+                        onChange={(e) => setForgotNewPass(e.target.value)}
+                        placeholder="Enter new password"
+                        required
+                        autoFocus
+                        className="w-full pl-9 pr-10 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPass(!showForgotPass)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8292A6] hover:text-[#10254F] p-1"
+                      >
+                        {showForgotPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={forgotNewPass}
-                  onChange={(e) => setForgotNewPass(e.target.value)}
-                  placeholder="Enter new password"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#8292A6]">
+                        <Lock size={16} />
+                      </div>
+                      <input
+                        type={showForgotConfirm ? "text" : "password"}
+                        value={forgotConfirmPass}
+                        onChange={(e) => setForgotConfirmPass(e.target.value)}
+                        placeholder="Confirm new password"
+                        required
+                        className="w-full pl-9 pr-10 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotConfirm(!showForgotConfirm)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8292A6] hover:text-[#10254F] p-1"
+                      >
+                        {showForgotConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-[#10254F] uppercase mb-1">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={forgotConfirmPass}
-                  onChange={(e) => setForgotConfirmPass(e.target.value)}
-                  placeholder="Confirm new password"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-semibold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsForgotModalOpen(false)}
-                  className="flex-1 py-2.5 border border-[#E3EAF5] rounded-xl font-bold text-[13px] text-[#64748B] hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={forgotStatus.type === "loading"}
-                  className="flex-1 py-2.5 bg-[#1677FF] hover:bg-[#1260CC] text-white rounded-xl font-bold text-[13px] transition-colors shadow-sm disabled:opacity-50"
-                >
-                  {forgotStatus.type === "loading" ? "Saving..." : "Reset Password"}
-                </button>
-              </div>
-            </form>
+                  <div className="pt-2 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep(1)}
+                      className="flex-1 py-2.5 border border-[#E3EAF5] rounded-xl font-bold text-[13px] text-[#64748B] hover:bg-gray-50 transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotStatus.type === "loading"}
+                      className="flex-1 py-2.5 bg-[#1677FF] hover:bg-[#1260CC] text-white rounded-xl font-bold text-[13px] transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      {forgotStatus.type === "loading" ? "Saving..." : "Save & Sign In"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
