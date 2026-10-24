@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { 
@@ -23,6 +23,7 @@ import {
   getAllUsers,
   getAdminSecurityConfig,
   verifyAdminMasterPin,
+  getSessionUser,
   AppUser
 } from "@/lib/authService";
 import { useCRM } from "@/context/CRMContext";
@@ -31,6 +32,9 @@ import InstallAppPrompt from "@/components/InstallAppPrompt";
 export default function LoginPage() {
   const router = useRouter();
   const { setCurrentMember } = useCRM();
+
+  // Auto-restore session state across device restarts
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   // Login form state (Only Phone & Password!)
   const [phone, setPhone] = useState("");
@@ -59,6 +63,26 @@ export default function LoginPage() {
     type: "idle",
     msg: "",
   });
+
+  // Automatically restore active session (survives phone restarts & browser reloads)
+  useEffect(() => {
+    try {
+      const activeUser = getSessionUser();
+      if (activeUser && activeUser.id && activeUser.role) {
+        if (activeUser.role === "admin") {
+          router.replace("/admin");
+          return;
+        } else if (activeUser.role === "member") {
+          if (activeUser.name) setCurrentMember(activeUser.name);
+          router.replace("/member");
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Session auto-restore error:", e);
+    }
+    setIsCheckingSession(false);
+  }, [router, setCurrentMember]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +243,15 @@ export default function LoginPage() {
       setForgotStatus({ type: "error", msg: err?.message || "Failed to reset password." });
     }
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-[#F0F4FA] flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-4 border-[#1677FF] border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-[#10254F] font-semibold text-sm">Restoring secure session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F0F4FA] flex items-center justify-center p-4 relative overflow-hidden">

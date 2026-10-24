@@ -905,13 +905,53 @@ export async function upsertAppUser(user: Partial<AppUser> & { id: string; name:
   return true;
 }
 
-// Session Helpers
+const COOKIE_SESSION_NAME = "ptm_crm_session_user_v1";
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"));
+  return match ? decodeURIComponent(match[3]) : null;
+}
+
+function setCookie(name: string, value: string, days = 365) {
+  if (typeof document === "undefined") return;
+  const maxAge = days * 24 * 60 * 60;
+  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+}
+
+// Session Helpers with 1-Year Multi-Store Persistence across Mobile Reboots
 export function getSessionUser(): AppUser | null {
   if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(STORAGE_KEY_SESSION);
+
+  // 1. Try localStorage
+  let raw = localStorage.getItem(STORAGE_KEY_SESSION);
+
+  // 2. Fallback to 1-year persistent cookie if localStorage was cleared on reboot
+  if (!raw) {
+    const fromCookie = getCookie(COOKIE_SESSION_NAME);
+    if (fromCookie) {
+      raw = fromCookie;
+      try {
+        localStorage.setItem(STORAGE_KEY_SESSION, fromCookie);
+      } catch {}
+    }
+  }
+
   if (!raw) return null;
+
   try {
-    return JSON.parse(raw);
+    const user = JSON.parse(raw);
+    if (user && user.id && user.role) {
+      // Refresh persistent cookie so session stays active for another year
+      setCookie(COOKIE_SESSION_NAME, raw, 365);
+      return user;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -919,12 +959,22 @@ export function getSessionUser(): AppUser | null {
 
 export function setSessionUser(user: AppUser) {
   if (typeof window !== "undefined") {
-    localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(user));
+    const raw = JSON.stringify(user);
+    try {
+      localStorage.setItem(STORAGE_KEY_SESSION, raw);
+    } catch (e) {
+      console.warn("localStorage setItem error:", e);
+    }
+    // Set 365-day persistent cookie to survive device restarts and browser cache evictions
+    setCookie(COOKIE_SESSION_NAME, raw, 365);
   }
 }
 
 export function clearSessionUser() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem(STORAGE_KEY_SESSION);
+    try {
+      localStorage.removeItem(STORAGE_KEY_SESSION);
+    } catch {}
+    deleteCookie(COOKIE_SESSION_NAME);
   }
 }

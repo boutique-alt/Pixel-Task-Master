@@ -1705,6 +1705,26 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     // Cloud sync
     await upsertBroadcastAlertDb(newAlert);
 
+    // Dispatch background Web Push so notification arrives even if app/website is closed
+    try {
+      fetch("/api/alerts/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: newAlert.id,
+          title: newAlert.title,
+          message: newAlert.message,
+          priority: newAlert.priority,
+          targetType: newAlert.targetType,
+          targetMember: newAlert.targetMember,
+          createdAt: newAlert.createdAt,
+          url: newAlert.targetType === "individual" ? "/member" : "/",
+        }),
+      }).catch((err) => console.warn("Background push dispatch error:", err));
+    } catch (e) {
+      // non-blocking
+    }
+
     // Activity
     const targetText = alertData.targetType === "all" ? "All Team Members" : (alertData.targetMember || "Member");
     addActivity(`Admin sent alert: "${alertData.title}" to ${targetText}`, "status");
