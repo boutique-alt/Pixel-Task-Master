@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM, Member, DirectoryClient } from "@/context/CRMContext";
+import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS } from "@/context/CRMContext";
 
 export default function AdminTasksPage() {
   const { 
@@ -864,15 +864,16 @@ export default function AdminTasksPage() {
                     name="category"
                     value={taskClientCategory}
                     onChange={(e) => setTaskClientCategory(e.target.value)}
-                    className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white"
+                    className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium"
                   >
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP / SEO</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Other">Other</option>
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {taskClientCategory && !CATEGORY_OPTIONS.some((o) => o.value === taskClientCategory) && (
+                      <option value={taskClientCategory}>{taskClientCategory}</option>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -997,19 +998,15 @@ export default function AdminTasksPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category</label>
-                  <select required name="category" defaultValue={editingClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white">
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP / SEO</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Wholesale">Wholesale</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Fashion">Fashion</option>
-                    <option value="Crafts">Crafts</option>
-                    <option value="Textiles">Textiles</option>
-                    <option value="Other">Other</option>
+                  <select required name="category" defaultValue={editingClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium">
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {editingClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingClient.category) && (
+                      <option value={editingClient.category}>{editingClient.category}</option>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -1147,14 +1144,12 @@ export default function AdminTasksPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Primary Category *</label>
-                  <select required name="category" defaultValue="Website Creation" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP / SEO</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Other">Other</option>
+                  <select required name="category" defaultValue="Website Creation" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1237,14 +1232,15 @@ export default function AdminTasksPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Primary Category *</label>
-                  <select required name="category" defaultValue={editingDirectoryClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP / SEO</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Other">Other</option>
+                  <select required name="category" defaultValue={editingDirectoryClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {editingDirectoryClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingDirectoryClient.category) && (
+                      <option value={editingDirectoryClient.category}>{editingDirectoryClient.category}</option>
+                    )}
                   </select>
                 </div>
                 <div>

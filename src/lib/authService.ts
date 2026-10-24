@@ -216,6 +216,7 @@ export type AdminSecurityConfig = {
   phone: string;
   email: string;
   pin: string;
+  currentPassword?: string;
 };
 
 export async function getAdminSecurityConfig(): Promise<AdminSecurityConfig> {
@@ -224,6 +225,7 @@ export async function getAdminSecurityConfig(): Promise<AdminSecurityConfig> {
     phone: "1234567890",
     email: "admin@company.com",
     pin: "123456",
+    currentPassword: "admin",
   };
 
   if (typeof window !== "undefined") {
@@ -251,18 +253,32 @@ export async function getAdminSecurityConfig(): Promise<AdminSecurityConfig> {
     // fallback
   }
 
-  // Also check app_users usr_admin
+  // Also check app_users usr_admin for Name, Phone and Current Decrypted Password
   try {
     const { data: u } = await supabase.from("app_users").select("*").eq("id", "usr_admin").maybeSingle();
     if (u) {
       if (u.name) config.name = u.name;
       if (u.phone) config.phone = u.phone;
+      if (u.password) {
+        config.currentPassword = isEncryptedPassword(u.password) ? decryptPassword(u.password) : u.password;
+      }
     }
   } catch {
     // fallback
   }
 
+  // Fallback to local custom passwords if currentPassword is still empty
+  if (!config.currentPassword) {
+    const custom = getCustomPasswords();
+    config.currentPassword = custom["admin"] || custom["usr_admin"] || custom["pixel solution"] || "admin";
+  }
+
   return config;
+}
+
+export async function getAdminCurrentPassword(): Promise<string> {
+  const conf = await getAdminSecurityConfig();
+  return conf.currentPassword || "admin";
 }
 
 export async function updateAdminSecurityConfig(newConfig: Partial<AdminSecurityConfig> & { password?: string }): Promise<boolean> {

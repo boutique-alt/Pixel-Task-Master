@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Users, DollarSign, Activity, PieChart, PackagePlus, UserCheck, BarChart2, Settings, X, AlertCircle } from "lucide-react";
+import { Users, DollarSign, Activity, PieChart, PackagePlus, UserCheck, Settings, X, AlertCircle, FileText } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM } from "@/context/CRMContext";
+import { useCRM, CATEGORY_OPTIONS } from "@/context/CRMContext";
 
 export default function AdminDashboard() {
-  const { clients, directoryClients, members, assignMember, addClient, deleteClient, updateClient, updateStatus } = useCRM();
+  const { clients, directoryClients, members, assignMember, addClient, deleteClient, updateClient, updateStatus, dailyReports } = useCRM();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [today, setToday] = useState("");
@@ -115,10 +115,10 @@ export default function AdminDashboard() {
                 </div>
               </Link>
               
-              <Link href="/admin/analytics" className="bg-orange-500 hover:bg-orange-600 text-white p-3 sm:p-4 rounded-xl text-left transition-colors flex flex-col justify-between h-24 sm:h-28 shadow-sm">
-                <BarChart2 size={18} className="mb-1 sm:mb-2 sm:w-5 sm:h-5" />
+              <Link href="/admin/attendance" className="bg-orange-500 hover:bg-orange-600 text-white p-3 sm:p-4 rounded-xl text-left transition-colors flex flex-col justify-between h-24 sm:h-28 shadow-sm">
+                <FileText size={18} className="mb-1 sm:mb-2 sm:w-5 sm:h-5" />
                 <div>
-                  <p className="font-bold text-xs sm:text-sm">View Reports</p>
+                  <p className="font-bold text-xs sm:text-sm">Daily Reports ({dailyReports.filter(r => r.date === today).length}/{members.length})</p>
                 </div>
               </Link>
               
@@ -255,14 +255,16 @@ export default function AdminDashboard() {
                   name="category"
                   value={addClientCategory}
                   onChange={(e) => setAddClientCategory(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium"
                 >
-                  <option value="Website Creation">Website Creation</option>
-                  <option value="Website Revamp">Website Revamp</option>
-                  <option value="Landing Page">Landing Page</option>
-                  <option value="Logo Design">Logo Design</option>
-                  <option value="GBP">GBP</option>
-                  <option value="Other">Other</option>
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                  {addClientCategory && !CATEGORY_OPTIONS.some((o) => o.value === addClientCategory) && (
+                    <option value={addClientCategory}>{addClientCategory}</option>
+                  )}
                 </select>
               </div>
 
@@ -351,19 +353,15 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select required name="category" defaultValue={editingClient.category} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Wholesale">Wholesale</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Fashion">Fashion</option>
-                    <option value="Crafts">Crafts</option>
-                    <option value="Textiles">Textiles</option>
-                    <option value="Other">Other</option>
+                  <select required name="category" defaultValue={editingClient.category} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium">
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {editingClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingClient.category) && (
+                      <option value={editingClient.category}>{editingClient.category}</option>
+                    )}
                   </select>
                 </div>
               </div>

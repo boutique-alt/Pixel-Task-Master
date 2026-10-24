@@ -12,8 +12,8 @@ import {
   BookOpen, 
   Landmark,
   Users,
-  BarChart,
   Settings,
+  FileText,
   X
 } from "lucide-react";
 
@@ -115,8 +115,14 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
             onClick={handleLinkClick}
             className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/attendance') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
           >
-            <Clock size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
-            <span className="text-[14px]">Check in / Check out</span>
+            {role === "admin" ? (
+              <FileText size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
+            ) : (
+              <Clock size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
+            )}
+            <span className="text-[14px]">
+              {role === "admin" ? "Daily Reports & Attendance" : "Check in / Out & Report"}
+            </span>
           </Link>
           <Link 
             href={`/${role}/hr-rules`} 
@@ -154,14 +160,6 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
               >
                 <Users size={20} className={pathname.includes('/members') ? '' : 'opacity-70'} />
                 <span className="text-[14px]">Members (CRUD)</span>
-              </Link>
-              <Link 
-                href={`/${role}/analytics`} 
-                onClick={handleLinkClick}
-                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/analytics') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-              >
-                <BarChart size={20} className={pathname.includes('/analytics') ? '' : 'opacity-70'} />
-                <span className="text-[14px]">Analytics</span>
               </Link>
               <Link 
                 href={`/${role}/settings`} 

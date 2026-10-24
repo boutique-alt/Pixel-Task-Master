@@ -11,7 +11,8 @@ import {
   OfficeRule, 
   MemberBankDetail, 
   SalaryPaymentRecord, 
-  Activity 
+  Activity,
+  DailyReport 
 } from "@/context/CRMContext";
 import { Client } from "@/components/ClientTable";
 
@@ -478,4 +479,60 @@ export async function insertActivityDb(act: Activity) {
     type: act.type,
   });
   if (error) console.error("insertActivityDb error:", error);
+}
+
+// 11. Member Daily Reports Cloud Sync (Untampered Submissions)
+export async function fetchDailyReportsDb(): Promise<DailyReport[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("*")
+      .eq("category", "Daily Report")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("fetchDailyReportsDb error:", error);
+      return null;
+    }
+    if (!data) return [];
+    
+    const reports: DailyReport[] = [];
+    for (const d of data) {
+      if (d.description) {
+        try {
+          const parsed = JSON.parse(d.description);
+          reports.push(parsed);
+        } catch {
+          // ignore corrupted json
+        }
+      }
+    }
+    return reports;
+  } catch (err) {
+    console.warn("fetchDailyReportsDb fallback:", err);
+    return null;
+  }
+}
+
+export async function upsertDailyReportDb(report: DailyReport) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: report.id,
+      category: "Daily Report",
+      title: `${report.member} - ${report.date} Report`,
+      description: JSON.stringify(report),
+    });
+    if (error) console.error("upsertDailyReportDb error:", error);
+  } catch (err) {
+    console.warn("upsertDailyReportDb error:", err);
+  }
+}
+
+export async function deleteDailyReportDb(id: string) {
+  try {
+    const { error } = await supabase.from("office_rules").delete().eq("id", id);
+    if (error) console.error("deleteDailyReportDb error:", error);
+  } catch (err) {
+    console.warn("deleteDailyReportDb error:", err);
+  }
 }

@@ -14,7 +14,8 @@ import {
   User,
   ListTodo,
   CheckSquare,
-  ShieldCheck
+  ShieldCheck,
+  Lock
 } from "lucide-react";
 import { useCRM, parseTimeToMs } from "@/context/CRMContext";
 
@@ -31,11 +32,13 @@ export default function MemberSendReportModal({
   onClose,
   memberName,
 }: MemberSendReportModalProps) {
-  const { clients, attendanceRecords, currentMember, members, sessionUser } = useCRM();
+  const { clients, attendanceRecords, currentMember, members, sessionUser, dailyReports, submitDailyReport } = useCRM();
 
   const [dateStr, setDateStr] = useState("");
   const [memberNote, setMemberNote] = useState("");
   const [isCopied, setIsCopied] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccessMsg, setSubmitSuccessMsg] = useState("");
 
   const activeName = memberName || currentMember || sessionUser?.name || "Rahim";
 
@@ -49,10 +52,21 @@ export default function MemberSendReportModal({
     setDateStr(today);
   }, []);
 
+  const existingReport = dailyReports.find(
+    (r) =>
+      r.date === (dateStr || new Date().toISOString().split("T")[0]) &&
+      r.member.trim().toLowerCase() === activeName.trim().toLowerCase()
+  );
+
   useEffect(() => {
-    setMemberNote("");
+    if (existingReport && existingReport.remarks) {
+      setMemberNote(existingReport.remarks);
+    } else {
+      setMemberNote("");
+    }
     setIsCopied(false);
-  }, [isOpen]);
+    setSubmitSuccessMsg("");
+  }, [isOpen, existingReport]);
 
   if (!isOpen) return null;
 
@@ -199,6 +213,51 @@ export default function MemberSendReportModal({
     setTimeout(() => setIsCopied(false), 2500);
   };
 
+  const handleSubmitReport = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const message = buildWhatsAppMessage();
+      await submitDailyReport({
+        date: dateStr,
+        member: activeName,
+        memberPhone: memberObj?.phone,
+        memberRole: memberObj?.role,
+        attendanceStatus: attendance ? attendanceStatus : "Absent",
+        checkInTime: checkInDisplay,
+        checkOutTime: checkOutDisplay,
+        workingTimeDisplay: totalHoursDisplay !== "—" ? totalHoursDisplay : "Not recorded",
+        totalTasksCount: memberTasks.length,
+        completedTasks: doneTasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          taskDetails: t.taskDetails,
+        })),
+        pendingTasks: pendingTasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          taskDetails: t.taskDetails,
+          status: t.status,
+        })),
+        cantDoTasks: cantDoTasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          reason: t.reason,
+        })),
+        remarks: memberNote.trim() || undefined,
+        formattedText: message,
+      });
+      setSubmitSuccessMsg("Report successfully submitted to Admin and permanently locked!");
+    } catch (err) {
+      console.error("Submit report error:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const memberPresets = [
     "Sir, I have finished all assigned tasks for today! 🎉",
     "Checked out for the day. Remaining tasks will be done tomorrow morning. ⏳",
@@ -238,6 +297,56 @@ export default function MemberSendReportModal({
 
         {/* Modal Scrollable Body */}
         <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+
+          {/* Tamper-Proof Official Status Banner */}
+          {existingReport ? (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-extrabold text-emerald-900">
+                    Official Report Submitted to Admin
+                  </span>
+                  <span className="bg-emerald-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Lock size={10} /> Locked
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                  Submitted Today at <strong>{existingReport.submittedTimeDisplay}</strong>. This official report is permanently saved in the Admin portal and cannot be edited.
+                </p>
+              </div>
+            </div>
+          ) : submitSuccessMsg ? (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <ShieldCheck size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-[12px] font-extrabold text-emerald-900">
+                  {submitSuccessMsg}
+                </span>
+                <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                  Admin can now view this official untampered report directly from their portal.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#1677FF] text-white flex items-center justify-center shrink-0 shadow-sm">
+                <ShieldCheck size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] text-[#10254F] font-bold">
+                  Direct Untampered Submission
+                </p>
+                <p className="text-[11px] text-[#64748B] font-medium">
+                  Clicking "Submit to Admin" sends your verified attendance and task progress directly to Admin side.
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
@@ -287,28 +396,42 @@ export default function MemberSendReportModal({
               <label className="text-[11px] font-bold text-[#10254F] uppercase">
                 Your Closing Remarks / Message to Sir (Optional)
               </label>
-              <span className="text-[10px] text-[#64748B]">Included in WhatsApp report</span>
+              {existingReport ? (
+                <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                  <Lock size={10} /> Locked &amp; Saved
+                </span>
+              ) : (
+                <span className="text-[10px] text-[#64748B]">Saved with report</span>
+              )}
             </div>
             <textarea
               rows={2}
               value={memberNote}
+              readOnly={!!existingReport}
+              disabled={!!existingReport}
               onChange={(e) => setMemberNote(e.target.value)}
               placeholder="e.g. Sir, I finished all assigned client tasks today. Tomorrow I will start on new website assets."
-              className="w-full p-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-medium text-[#10254F] focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white resize-none"
+              className={`w-full p-2.5 border rounded-xl text-[13px] font-medium resize-none ${
+                existingReport 
+                  ? "bg-gray-100 border-gray-200 text-gray-700 cursor-not-allowed" 
+                  : "bg-[#F8FAFC] border-[#E3EAF5] text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
+              }`}
             />
             {/* Quick Member Presets */}
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {memberPresets.map((preset, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setMemberNote(preset)}
-                  className="text-[10px] bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-[#64748B] px-2 py-0.5 rounded-md font-medium border border-[#E3EAF5] transition-colors cursor-pointer text-left"
-                >
-                  + {preset}
-                </button>
-              ))}
-            </div>
+            {!existingReport && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {memberPresets.map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setMemberNote(preset)}
+                    className="text-[10px] bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-[#64748B] px-2 py-0.5 rounded-md font-medium border border-[#E3EAF5] transition-colors cursor-pointer text-left"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Live Message Preview Box */}
@@ -316,7 +439,7 @@ export default function MemberSendReportModal({
             <div className="flex justify-between items-center mb-1">
               <label className="text-[11px] font-bold text-[#10254F] uppercase flex items-center gap-1">
                 <Sparkles size={13} className="text-emerald-600" />
-                Preview: Report to {ADMIN_REPORT_WHATSAPP_NUMBER}
+                Report Snapshot Preview
               </label>
               <button
                 type="button"
@@ -347,7 +470,7 @@ export default function MemberSendReportModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2.5 border border-[#E3EAF5] rounded-xl font-bold text-[13px] text-[#64748B] hover:bg-white transition-colors"
+            className="w-full sm:w-auto px-4 py-2.5 border border-[#E3EAF5] rounded-xl font-bold text-[13px] text-[#64748B] hover:bg-white transition-colors cursor-pointer"
           >
             Close
           </button>
@@ -355,20 +478,42 @@ export default function MemberSendReportModal({
           <button
             type="button"
             onClick={handleCopyReport}
-            className="flex-1 py-2.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 rounded-xl font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            className="py-2.5 px-4 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
           >
             {isCopied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
-            <span>{isCopied ? "Copied!" : "Copy Report"}</span>
+            <span>{isCopied ? "Copied!" : "Copy"}</span>
           </button>
+
+          {existingReport ? (
+            <button
+              type="button"
+              disabled
+              className="flex-1 py-2.5 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl font-extrabold text-[13px] flex items-center justify-center gap-2 cursor-not-allowed shadow-none"
+            >
+              <ShieldCheck size={17} className="text-emerald-700" />
+              <span>Report Locked &amp; Submitted ({existingReport.submittedTimeDisplay})</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmitReport}
+              disabled={isSubmitting}
+              className="flex-1 py-2.5 bg-[#1677FF] hover:bg-[#1260CC] text-white rounded-xl font-extrabold text-[13px] transition-all flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(22,119,255,0.35)] cursor-pointer"
+            >
+              <Send size={16} />
+              <span>{isSubmitting ? "Submitting..." : "Submit to Admin (Direct & Locked)"}</span>
+            </button>
+          )}
 
           <button
             type="button"
             onClick={handleSendToAdmin}
-            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[13px] transition-colors flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(16,185,129,0.35)] cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[13px] transition-colors flex items-center justify-center gap-1.5 shadow-[0_4px_16px_rgba(16,185,129,0.3)] cursor-pointer"
+            title="Also send message to Admin's WhatsApp (8240017974)"
           >
-            <MessageCircle size={17} />
-            <span>Send to Sir (8240017974)</span>
-            <ExternalLink size={14} className="opacity-80" />
+            <MessageCircle size={16} />
+            <span className="hidden sm:inline">WhatsApp</span>
+            <ExternalLink size={13} className="opacity-80" />
           </button>
         </div>
 

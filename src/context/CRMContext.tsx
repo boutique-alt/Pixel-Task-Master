@@ -37,6 +37,9 @@ import {
   upsertAttendanceConfigDb,
   fetchActivitiesDb,
   insertActivityDb,
+  fetchDailyReportsDb,
+  upsertDailyReportDb,
+  deleteDailyReportDb,
 } from "@/lib/crmService";
 import { getSessionUser, clearSessionUser, AppUser } from "@/lib/authService";
 
@@ -66,6 +69,20 @@ export type DirectoryClient = {
   address?: string;
   status?: "Active" | "Inactive";
 };
+
+export const CATEGORY_OPTIONS = [
+  { value: "Website Creation", label: "Website Creation" },
+  { value: "Website Revamp", label: "Website Revamp" },
+  { value: "Landing Page", label: "Landing Page" },
+  { value: "Logo Design", label: "Logo Design" },
+  { value: "Logo Revamp", label: "Logo Revamp" },
+  { value: "Reels", label: "Reels" },
+  { value: "Creative", label: "Creative" },
+  { value: "Ad Running", label: "Ad Running" },
+  { value: "GBP", label: "GBP / SEO" },
+  { value: "Retail", label: "Retail" },
+  { value: "Other", label: "Other" },
+] as const;
 
 export type LeaveTypeOption = {
   id: string;
@@ -169,6 +186,46 @@ export type SalaryPaymentRecord = {
   transactionRef?: string;
 };
 
+export type DailyReportTaskItem = {
+  id: string;
+  name: string;
+  category: string;
+  taskDetails?: string;
+  status?: string;
+  reason?: string;
+};
+
+export type DailyReport = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  submittedAt: string; // ISO string
+  submittedTimeDisplay: string; // "06:45 PM"
+  member: string;
+  memberPhone?: string;
+  memberRole?: string;
+  
+  // Attendance snapshot
+  attendanceStatus: string;
+  checkInTime: string;
+  checkOutTime: string;
+  workingTimeDisplay: string;
+  
+  // Tasks
+  totalTasksCount: number;
+  completedTasks: DailyReportTaskItem[];
+  pendingTasks: DailyReportTaskItem[];
+  cantDoTasks?: DailyReportTaskItem[];
+  
+  // Remarks
+  remarks?: string;
+  
+  // Formatted report string (used for direct WhatsApp forward or copy)
+  formattedText: string;
+  
+  // Tamper-proof flag
+  isLocked: boolean;
+};
+
 interface CRMContextType {
   clients: Client[];
   directoryClients: DirectoryClient[];
@@ -192,6 +249,10 @@ interface CRMContextType {
   // Bank Details & Salary Payments State
   bankDetails: MemberBankDetail[];
   salaryPayments: SalaryPaymentRecord[];
+  // Daily Reports State (Tamper-Proof)
+  dailyReports: DailyReport[];
+  submitDailyReport: (report: Omit<DailyReport, "id" | "isLocked" | "submittedAt" | "submittedTimeDisplay">) => Promise<{ success: boolean; report: DailyReport }>;
+  deleteDailyReport: (id: string) => void;
   // Task CRUD
   updateStatus: (id: string, status: Client["status"], user: string) => void;
   updateComment: (id: string, comment: string, user: string) => void;
@@ -420,6 +481,7 @@ const STORAGE_KEYS = {
   OFFICE_RULES: "ptm_crm_office_rules_v1",
   BANK_DETAILS: "ptm_crm_bank_details_v1",
   SALARY_PAYMENTS: "ptm_crm_salary_payments_v1",
+  DAILY_REPORTS: "ptm_crm_daily_reports_v1",
 };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -461,6 +523,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const [officeRules, setOfficeRules] = useState<OfficeRule[]>(INITIAL_OFFICE_RULES);
   const [bankDetails, setBankDetails] = useState<MemberBankDetail[]>(INITIAL_BANK_DETAILS);
   const [salaryPayments, setSalaryPayments] = useState<SalaryPaymentRecord[]>(INITIAL_SALARY_PAYMENTS);
+  const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
 
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -492,6 +555,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const savedOfficeRules = localStorage.getItem(STORAGE_KEYS.OFFICE_RULES);
       const savedBankDetails = localStorage.getItem(STORAGE_KEYS.BANK_DETAILS);
       const savedSalaryPayments = localStorage.getItem(STORAGE_KEYS.SALARY_PAYMENTS);
+      const savedDailyReports = localStorage.getItem(STORAGE_KEYS.DAILY_REPORTS);
 
       let parsedClients: Client[] | null = null;
       if (savedClients) {
@@ -507,6 +571,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (savedOfficeRules) setOfficeRules(JSON.parse(savedOfficeRules));
       if (savedBankDetails) setBankDetails(JSON.parse(savedBankDetails));
       if (savedSalaryPayments) setSalaryPayments(JSON.parse(savedSalaryPayments));
+      if (savedDailyReports) setDailyReports(JSON.parse(savedDailyReports));
 
       let parsedAttConfig: OfficeAttendanceConfig = INITIAL_ATTENDANCE_CONFIG;
       if (savedAttConfig) {
@@ -603,6 +668,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             dbRules, 
             dbActs,
             dbConfig,
+            dbReports,
           ] = await Promise.all([
             fetchMembersDb(),
             fetchDirectoryClientsDb(),
@@ -617,6 +683,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             fetchOfficeRulesDb(),
             fetchActivitiesDb(),
             fetchAttendanceConfigDb(),
+            fetchDailyReportsDb(),
           ]);
 
           if (dbConfig) {
@@ -668,6 +735,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           if (dbNotices && dbNotices.length > 0) setHrNotices(dbNotices);
           if (dbRules && dbRules.length > 0) setOfficeRules(dbRules);
           if (dbActs && dbActs.length > 0) setActivities(dbActs);
+          if (dbReports && dbReports.length > 0) setDailyReports(dbReports);
         } catch (err) {
           console.warn("Supabase initial sync error:", err);
         }
@@ -708,6 +776,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           setBankDetails(JSON.parse(e.newValue));
         } else if (e.key === STORAGE_KEYS.SALARY_PAYMENTS && e.newValue) {
           setSalaryPayments(JSON.parse(e.newValue));
+        } else if (e.key === STORAGE_KEYS.DAILY_REPORTS && e.newValue) {
+          setDailyReports(JSON.parse(e.newValue));
         }
       } catch (err) {
         console.error("Error syncing CRM state across tabs", err);
@@ -788,6 +858,11 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (!isHydrated) return;
     try { localStorage.setItem(STORAGE_KEYS.SALARY_PAYMENTS, JSON.stringify(salaryPayments)); } catch (e) { console.error(e); }
   }, [salaryPayments, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    try { localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(dailyReports)); } catch (e) { console.error(e); }
+  }, [dailyReports, isHydrated]);
 
   const addActivity = (text: string, type: Activity["type"]) => {
     const newActivity: Activity = {
@@ -1493,6 +1568,56 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     setSalaryPayments((prev) => prev.filter((p) => p.id !== id));
   };
 
+  const submitDailyReport = async (
+    reportData: Omit<DailyReport, "id" | "isLocked" | "submittedAt" | "submittedTimeDisplay">
+  ): Promise<{ success: boolean; report: DailyReport }> => {
+    const now = new Date();
+    const id = `rep_${reportData.date}_${reportData.member.trim().toLowerCase().replace(/\s+/g, "_")}`;
+    const submittedAt = now.toISOString();
+    const submittedTimeDisplay = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+    const newReport: DailyReport = {
+      ...reportData,
+      id,
+      submittedAt,
+      submittedTimeDisplay,
+      isLocked: true,
+    };
+
+    setDailyReports((prev) => {
+      const filtered = prev.filter((r) => r.id !== id);
+      const updated = [newReport, ...filtered];
+      try {
+        localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    // Cloud sync in Supabase
+    await upsertDailyReportDb(newReport);
+
+    // Activity feed
+    const actText = `${reportData.member} submitted Daily Work Report (${reportData.completedTasks.length} Done, ${reportData.pendingTasks.length} Pending)`;
+    addActivity(actText, "status");
+
+    return { success: true, report: newReport };
+  };
+
+  const deleteDailyReport = (id: string) => {
+    setDailyReports((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    deleteDailyReportDb(id);
+  };
+
   const logout = () => {
     clearSessionUser();
     setSessionUserState(null);
@@ -1511,6 +1636,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       currentDeviceId, currentNetworkIp,
       hrNotices, officeRules,
       bankDetails, salaryPayments,
+      dailyReports, submitDailyReport, deleteDailyReport,
       updateStatus, updateComment, assignMember, 
       addClient, deleteClient, updateClient,
       addMember, updateMember, deleteMember,

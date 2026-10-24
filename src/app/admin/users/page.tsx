@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Search, Plus, X, Edit, Trash2, Phone, Mail, Building2, Briefcase } from "lucide-react";
-import { useCRM, DirectoryClient } from "@/context/CRMContext";
+import { useCRM, DirectoryClient, CATEGORY_OPTIONS } from "@/context/CRMContext";
 
 export default function AdminClientsPage() {
   const { directoryClients, clients, addDirectoryClient, updateDirectoryClient, deleteDirectoryClient } = useCRM();
@@ -189,14 +189,12 @@ export default function AdminClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category *</label>
-                  <select required name="category" defaultValue="Website Creation" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP / SEO</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Other">Other</option>
+                  <select required name="category" defaultValue="Website Creation" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -267,14 +265,15 @@ export default function AdminClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category *</label>
-                  <select required name="category" defaultValue={editingClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Website Creation">Website Creation</option>
-                    <option value="Website Revamp">Website Revamp</option>
-                    <option value="Landing Page">Landing Page</option>
-                    <option value="Logo Design">Logo Design</option>
-                    <option value="GBP">GBP / SEO</option>
-                    <option value="Retail">Retail</option>
-                    <option value="Other">Other</option>
+                  <select required name="category" defaultValue={editingClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {editingClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingClient.category) && (
+                      <option value={editingClient.category}>{editingClient.category}</option>
+                    )}
                   </select>
                 </div>
                 <div>
