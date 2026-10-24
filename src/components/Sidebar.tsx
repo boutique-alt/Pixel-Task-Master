@@ -14,6 +14,7 @@ import {
   Users,
   Settings,
   FileText,
+  Bell,
   X
 } from "lucide-react";
 
@@ -145,6 +146,14 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
           {role === "admin" && (
             <>
               <div className="pt-4 pb-1 px-4 text-[10px] uppercase font-extrabold text-[#1677FF] tracking-wider">Admin Management</div>
+              <Link 
+                href="/admin/alerts" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/alerts') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <Bell size={20} className={pathname.includes('/alerts') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Alerts &amp; Broadcast</span>
+              </Link>
               <Link 
                 href={`/${role}/users`} 
                 onClick={handleLinkClick}

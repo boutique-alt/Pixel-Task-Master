@@ -17,6 +17,7 @@ const ROUTE_INFO: Record<string, { title: string; subtitle: string }> = {
   "/admin/tasks": { title: "Tasklist", subtitle: "Manage and assign client tasks" },
   "/admin/leave": { title: "Leave Apply", subtitle: "Review and approve employee leave requests" },
   "/admin/attendance": { title: "Daily Reports & Attendance", subtitle: "Member daily work reports, live attendance & office security" },
+  "/admin/alerts": { title: "Alerts & Announcements", subtitle: "Broadcast notifications and alerts with ringtone to members" },
   "/admin/hr-rules": { title: "HR Rules", subtitle: "Office policies, rules & company notices" },
   "/admin/bank-details": { title: "Bank Details", subtitle: "Member accounts & salary payment records" },
   "/admin/users": { title: "Client Directory", subtitle: "Create and manage company client records" },

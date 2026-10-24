@@ -12,7 +12,8 @@ import {
   MemberBankDetail, 
   SalaryPaymentRecord, 
   Activity,
-  DailyReport 
+  DailyReport,
+  BroadcastAlert 
 } from "@/context/CRMContext";
 import { Client } from "@/components/ClientTable";
 
@@ -534,5 +535,61 @@ export async function deleteDailyReportDb(id: string) {
     if (error) console.error("deleteDailyReportDb error:", error);
   } catch (err) {
     console.warn("deleteDailyReportDb error:", err);
+  }
+}
+
+// 12. Broadcast Alerts Cloud Sync (Real-time Team & Individual Alerts)
+export async function fetchBroadcastAlertsDb(): Promise<BroadcastAlert[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("*")
+      .eq("category", "Broadcast Alert")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("fetchBroadcastAlertsDb error:", error);
+      return null;
+    }
+    if (!data) return [];
+
+    const alerts: BroadcastAlert[] = [];
+    for (const d of data) {
+      if (d.description) {
+        try {
+          const parsed = JSON.parse(d.description);
+          alerts.push(parsed);
+        } catch {
+          // ignore corrupted json
+        }
+      }
+    }
+    return alerts;
+  } catch (err) {
+    console.warn("fetchBroadcastAlertsDb fallback:", err);
+    return null;
+  }
+}
+
+export async function upsertBroadcastAlertDb(alert: BroadcastAlert) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: alert.id,
+      category: "Broadcast Alert",
+      title: alert.title,
+      description: JSON.stringify(alert),
+    });
+    if (error) console.error("upsertBroadcastAlertDb error:", error);
+  } catch (err) {
+    console.warn("upsertBroadcastAlertDb error:", err);
+  }
+}
+
+export async function deleteBroadcastAlertDb(id: string) {
+  try {
+    const { error } = await supabase.from("office_rules").delete().eq("id", id);
+    if (error) console.error("deleteBroadcastAlertDb error:", error);
+  } catch (err) {
+    console.warn("deleteBroadcastAlertDb error:", err);
   }
 }

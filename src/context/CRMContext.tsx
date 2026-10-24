@@ -40,6 +40,9 @@ import {
   fetchDailyReportsDb,
   upsertDailyReportDb,
   deleteDailyReportDb,
+  fetchBroadcastAlertsDb,
+  upsertBroadcastAlertDb,
+  deleteBroadcastAlertDb,
 } from "@/lib/crmService";
 import { getSessionUser, clearSessionUser, AppUser } from "@/lib/authService";
 
@@ -226,6 +229,19 @@ export type DailyReport = {
   isLocked: boolean;
 };
 
+export type BroadcastAlert = {
+  id: string; // e.g. "alert_1729760000000"
+  title: string; // বিষয়
+  message: string; // বিস্তারিত মেসেজ
+  targetType: "all" | "individual";
+  targetMember?: string; // e.g. "Rahim"
+  priority: "normal" | "urgent";
+  createdAt: string; // ISO string
+  createdTimeDisplay: string; // "02:30 PM"
+  createdDate: string; // "2026-10-24"
+  acknowledgedBy: string[]; // member names who clicked OK
+};
+
 interface CRMContextType {
   clients: Client[];
   directoryClients: DirectoryClient[];
@@ -253,6 +269,11 @@ interface CRMContextType {
   dailyReports: DailyReport[];
   submitDailyReport: (report: Omit<DailyReport, "id" | "isLocked" | "submittedAt" | "submittedTimeDisplay">) => Promise<{ success: boolean; report: DailyReport }>;
   deleteDailyReport: (id: string) => void;
+  // Broadcast Alerts State (Real-time with Sound)
+  broadcastAlerts: BroadcastAlert[];
+  sendBroadcastAlert: (alert: Omit<BroadcastAlert, "id" | "createdAt" | "createdTimeDisplay" | "createdDate" | "acknowledgedBy">) => Promise<{ success: boolean; alert: BroadcastAlert }>;
+  acknowledgeAlert: (alertId: string, memberName: string) => Promise<void>;
+  deleteBroadcastAlert: (id: string) => void;
   // Task CRUD
   updateStatus: (id: string, status: Client["status"], user: string) => void;
   updateComment: (id: string, comment: string, user: string) => void;
@@ -482,6 +503,7 @@ const STORAGE_KEYS = {
   BANK_DETAILS: "ptm_crm_bank_details_v1",
   SALARY_PAYMENTS: "ptm_crm_salary_payments_v1",
   DAILY_REPORTS: "ptm_crm_daily_reports_v1",
+  BROADCAST_ALERTS: "ptm_crm_broadcast_alerts_v1",
 };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -524,6 +546,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const [bankDetails, setBankDetails] = useState<MemberBankDetail[]>(INITIAL_BANK_DETAILS);
   const [salaryPayments, setSalaryPayments] = useState<SalaryPaymentRecord[]>(INITIAL_SALARY_PAYMENTS);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
+  const [broadcastAlerts, setBroadcastAlerts] = useState<BroadcastAlert[]>([]);
 
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -556,6 +579,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const savedBankDetails = localStorage.getItem(STORAGE_KEYS.BANK_DETAILS);
       const savedSalaryPayments = localStorage.getItem(STORAGE_KEYS.SALARY_PAYMENTS);
       const savedDailyReports = localStorage.getItem(STORAGE_KEYS.DAILY_REPORTS);
+      const savedBroadcastAlerts = localStorage.getItem(STORAGE_KEYS.BROADCAST_ALERTS);
 
       let parsedClients: Client[] | null = null;
       if (savedClients) {
@@ -572,6 +596,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (savedBankDetails) setBankDetails(JSON.parse(savedBankDetails));
       if (savedSalaryPayments) setSalaryPayments(JSON.parse(savedSalaryPayments));
       if (savedDailyReports) setDailyReports(JSON.parse(savedDailyReports));
+      if (savedBroadcastAlerts) setBroadcastAlerts(JSON.parse(savedBroadcastAlerts));
 
       let parsedAttConfig: OfficeAttendanceConfig = INITIAL_ATTENDANCE_CONFIG;
       if (savedAttConfig) {
@@ -669,6 +694,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             dbActs,
             dbConfig,
             dbReports,
+            dbAlerts,
           ] = await Promise.all([
             fetchMembersDb(),
             fetchDirectoryClientsDb(),
@@ -684,6 +710,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             fetchActivitiesDb(),
             fetchAttendanceConfigDb(),
             fetchDailyReportsDb(),
+            fetchBroadcastAlertsDb(),
           ]);
 
           if (dbConfig) {
@@ -736,6 +763,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           if (dbRules && dbRules.length > 0) setOfficeRules(dbRules);
           if (dbActs && dbActs.length > 0) setActivities(dbActs);
           if (dbReports && dbReports.length > 0) setDailyReports(dbReports);
+          if (dbAlerts && dbAlerts.length > 0) setBroadcastAlerts(dbAlerts);
         } catch (err) {
           console.warn("Supabase initial sync error:", err);
         }
@@ -778,6 +806,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           setSalaryPayments(JSON.parse(e.newValue));
         } else if (e.key === STORAGE_KEYS.DAILY_REPORTS && e.newValue) {
           setDailyReports(JSON.parse(e.newValue));
+        } else if (e.key === STORAGE_KEYS.BROADCAST_ALERTS && e.newValue) {
+          setBroadcastAlerts(JSON.parse(e.newValue));
         }
       } catch (err) {
         console.error("Error syncing CRM state across tabs", err);
@@ -787,6 +817,27 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
+  // Periodic background check for instant real-time alerts from admin
+  useEffect(() => {
+    if (!isHydrated) return;
+    const interval = setInterval(async () => {
+      try {
+        const cloudAlerts = await fetchBroadcastAlertsDb();
+        if (cloudAlerts) {
+          setBroadcastAlerts((prev) => {
+            if (JSON.stringify(prev) !== JSON.stringify(cloudAlerts)) {
+              return cloudAlerts;
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // silent fallback
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isHydrated]);
 
   // Persist changes to localStorage
   useEffect(() => {
@@ -863,6 +914,11 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (!isHydrated) return;
     try { localStorage.setItem(STORAGE_KEYS.DAILY_REPORTS, JSON.stringify(dailyReports)); } catch (e) { console.error(e); }
   }, [dailyReports, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    try { localStorage.setItem(STORAGE_KEYS.BROADCAST_ALERTS, JSON.stringify(broadcastAlerts)); } catch (e) { console.error(e); }
+  }, [broadcastAlerts, isHydrated]);
 
   const addActivity = (text: string, type: Activity["type"]) => {
     const newActivity: Activity = {
@@ -1618,6 +1674,81 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     deleteDailyReportDb(id);
   };
 
+  const sendBroadcastAlert = async (
+    alertData: Omit<BroadcastAlert, "id" | "createdAt" | "createdTimeDisplay" | "createdDate" | "acknowledgedBy">
+  ): Promise<{ success: boolean; alert: BroadcastAlert }> => {
+    const now = new Date();
+    const id = `alert_${now.getTime()}_${Math.random().toString(36).substring(2, 6)}`;
+    const createdAt = now.toISOString();
+    const createdTimeDisplay = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+    const createdDate = createdAt.split("T")[0];
+
+    const newAlert: BroadcastAlert = {
+      ...alertData,
+      id,
+      createdAt,
+      createdTimeDisplay,
+      createdDate,
+      acknowledgedBy: [],
+    };
+
+    setBroadcastAlerts((prev) => {
+      const updated = [newAlert, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.BROADCAST_ALERTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    // Cloud sync
+    await upsertBroadcastAlertDb(newAlert);
+
+    // Activity
+    const targetText = alertData.targetType === "all" ? "All Team Members" : (alertData.targetMember || "Member");
+    addActivity(`Admin sent alert: "${alertData.title}" to ${targetText}`, "status");
+
+    return { success: true, alert: newAlert };
+  };
+
+  const acknowledgeAlert = async (alertId: string, memberName: string) => {
+    const target = broadcastAlerts.find((a) => a.id === alertId);
+    if (!target) return;
+    const cleanName = memberName.trim();
+    if (target.acknowledgedBy.includes(cleanName)) return;
+
+    const updatedAlert: BroadcastAlert = {
+      ...target,
+      acknowledgedBy: [...target.acknowledgedBy, cleanName],
+    };
+
+    setBroadcastAlerts((prev) => {
+      const updated = prev.map((a) => (a.id === alertId ? updatedAlert : a));
+      try {
+        localStorage.setItem(STORAGE_KEYS.BROADCAST_ALERTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    await upsertBroadcastAlertDb(updatedAlert);
+  };
+
+  const deleteBroadcastAlert = (id: string) => {
+    setBroadcastAlerts((prev) => {
+      const updated = prev.filter((a) => a.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.BROADCAST_ALERTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    deleteBroadcastAlertDb(id);
+  };
+
   const logout = () => {
     clearSessionUser();
     setSessionUserState(null);
@@ -1637,6 +1768,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       hrNotices, officeRules,
       bankDetails, salaryPayments,
       dailyReports, submitDailyReport, deleteDailyReport,
+      broadcastAlerts, sendBroadcastAlert, acknowledgeAlert, deleteBroadcastAlert,
       updateStatus, updateComment, assignMember, 
       addClient, deleteClient, updateClient,
       addMember, updateMember, deleteMember,
