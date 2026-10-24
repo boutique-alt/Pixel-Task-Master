@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useCRM, BroadcastAlert } from "@/context/CRMContext";
 import { playAlertSound, stopAlertSound } from "@/lib/soundService";
-import { Bell, CheckCircle2, AlertTriangle, Megaphone, Volume2, X } from "lucide-react";
+import { Bell, CheckCircle2, AlertTriangle, Megaphone, Volume2 } from "lucide-react";
 
 export default function GlobalAlertListener() {
   const { broadcastAlerts, sessionUser, currentMember, acknowledgeAlert } = useCRM();
@@ -11,11 +11,12 @@ export default function GlobalAlertListener() {
   const [activeAlert, setActiveAlert] = useState<BroadcastAlert | null>(null);
   const seenAlertIdsRef = useRef<Set<string>>(new Set());
 
-  // Determine active member identity
+  // Determine active member name
   const activeName = (sessionUser?.name || currentMember || "").trim();
 
+  // Register service worker and request native browser notification permission
   useEffect(() => {
-    // Load local acknowledged alert IDs
+    // 1. Load locally seen alert IDs
     try {
       const stored = localStorage.getItem("ptm_acknowledged_alerts_v1");
       if (stored) {
@@ -27,7 +28,47 @@ export default function GlobalAlertListener() {
     } catch {
       // ignore
     }
+
+    // 2. Register Service Worker for background capability
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.warn("ServiceWorker registration failed:", err);
+      });
+    }
+
+    // 3. Request native browser notification permission
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
+    }
   }, []);
+
+  // Show native system desktop notification (works even if tab is in background/minimized)
+  const triggerNativeDesktopNotification = (alert: BroadcastAlert) => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    try {
+      const title = alert.priority === "urgent" ? "🚨 Urgent Alert from Admin" : "📢 Office Announcement";
+      const options: NotificationOptions = {
+        body: alert.message,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        tag: alert.id,
+      };
+
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification(title, options);
+        });
+      } else {
+        new Notification(title, options);
+      }
+    } catch (e) {
+      console.warn("Desktop notification error:", e);
+    }
+  };
 
   useEffect(() => {
     if (!broadcastAlerts || broadcastAlerts.length === 0 || !activeName) return;
@@ -41,13 +82,11 @@ export default function GlobalAlertListener() {
       return false;
     });
 
-    // Find the latest unacknowledged alert that hasn't been closed/seen yet
+    // Find latest unacknowledged alert
     const pendingAlert = userAlerts.find((alert) => {
-      // Already recorded in backend DB
       if (alert.acknowledgedBy && alert.acknowledgedBy.some((m) => m.toLowerCase() === activeName.toLowerCase())) {
         return false;
       }
-      // Already seen in this browser session
       if (seenAlertIdsRef.current.has(alert.id)) {
         return false;
       }
@@ -56,8 +95,10 @@ export default function GlobalAlertListener() {
 
     if (pendingAlert && (!activeAlert || activeAlert.id !== pendingAlert.id)) {
       setActiveAlert(pendingAlert);
-      // Play user's provided ringtone!
+      // Play custom ringtone!
       playAlertSound({ volume: pendingAlert.priority === "urgent" ? 1.0 : 0.85 });
+      // Trigger native system desktop notification
+      triggerNativeDesktopNotification(pendingAlert);
     }
   }, [broadcastAlerts, activeName, activeAlert]);
 
@@ -109,14 +150,14 @@ export default function GlobalAlertListener() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-black uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded-full">
-                  {isUrgent ? "🚨 Urgent Alert" : "📢 Office Announcement"}
+                  {isUrgent ? "Urgent Alert" : "Announcement"}
                 </span>
                 <span className="text-[11px] opacity-90 font-medium">
                   • {activeAlert.createdTimeDisplay}
                 </span>
               </div>
               <h2 className="text-[17px] font-extrabold leading-tight mt-0.5">
-                New Alert from Admin
+                New Message from Admin
               </h2>
             </div>
           </div>
@@ -129,7 +170,7 @@ export default function GlobalAlertListener() {
 
         {/* Modal Body */}
         <div className="p-6 space-y-4">
-          {/* Target audience pill */}
+          {/* Target pill */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold uppercase text-gray-400">Target:</span>
             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
@@ -137,26 +178,16 @@ export default function GlobalAlertListener() {
                 ? "bg-blue-50 text-blue-700 border border-blue-200" 
                 : "bg-purple-50 text-purple-700 border border-purple-200"
             }`}>
-              {activeAlert.targetType === "all" ? "👥 Entire Team" : `👤 Direct to ${activeAlert.targetMember}`}
+              {activeAlert.targetType === "all" ? "Entire Team" : `Direct to ${activeAlert.targetMember}`}
             </span>
           </div>
 
-          {/* Subject / বিষয় */}
-          <div>
-            <label className="text-[11px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
-              বিষয় (Subject)
-            </label>
-            <h3 className="text-[19px] font-black text-[#10254F] leading-snug">
-              {activeAlert.title}
-            </h3>
-          </div>
-
-          {/* Detailed Message / বিস্তারিত মেসেজ */}
+          {/* Single Message Display */}
           <div className="p-4 bg-[#F8FAFC] border border-[#E3EAF5] rounded-2xl">
-            <label className="text-[11px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1">
-              বিস্তারিত মেসেজ (Details)
+            <label className="text-[11px] font-extrabold uppercase tracking-wider text-gray-400 block mb-1.5">
+              Message from Admin
             </label>
-            <p className="text-[14px] text-[#334155] font-medium leading-relaxed whitespace-pre-wrap">
+            <p className="text-[15px] text-[#1E293B] font-semibold leading-relaxed whitespace-pre-wrap">
               {activeAlert.message}
             </p>
           </div>
@@ -166,7 +197,7 @@ export default function GlobalAlertListener() {
         <div className="p-5 bg-gray-50 border-t border-[#E3EAF5] flex items-center justify-between gap-3">
           <p className="text-[11px] text-[#64748B] font-medium flex items-center gap-1">
             <Bell size={13} className="text-[#1677FF]" />
-            <span>Clicking "ঠিক আছে" acknowledges this alert</span>
+            <span>Click Acknowledge to confirm and stop ringtone</span>
           </p>
 
           <button
@@ -179,7 +210,7 @@ export default function GlobalAlertListener() {
             }`}
           >
             <CheckCircle2 size={16} />
-            <span>ঠিক আছে / Acknowledge</span>
+            <span>Acknowledge</span>
           </button>
         </div>
       </div>

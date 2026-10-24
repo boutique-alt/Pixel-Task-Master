@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useCRM, Member } from "@/context/CRMContext";
+import { useCRM } from "@/context/CRMContext";
 import { playAlertSound, stopAlertSound } from "@/lib/soundService";
 import { 
   Bell, 
@@ -14,16 +14,13 @@ import {
   CheckCircle2, 
   Trash2, 
   Clock, 
-  Calendar,
-  Sparkles,
-  Info
+  Calendar
 } from "lucide-react";
 
 export default function AdminAlertsPage() {
   const { members, broadcastAlerts, sendBroadcastAlert, deleteBroadcastAlert } = useCRM();
 
-  // Form states - Simple: বিষয় & বিস্তারিত মেসেজ + Target
-  const [title, setTitle] = useState("");
+  // Single input: Message
   const [message, setMessage] = useState("");
   const [targetType, setTargetType] = useState<"all" | "individual">("all");
   const [targetMember, setTargetMember] = useState<string>(members[0]?.name || "Rahim");
@@ -51,32 +48,36 @@ export default function AdminAlertsPage() {
 
   const handleSendAlert = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !message.trim()) {
-      alert("অনুগ্রহ করে বিষয় এবং বিস্তারিত মেসেজ লিখুন।");
+    const cleanMsg = message.trim();
+    if (!cleanMsg) {
+      alert("Please enter a message.");
       return;
     }
 
     setIsSending(true);
     try {
+      // Derive clean title from message
+      const derivedTitle = priority === "urgent" 
+        ? "🚨 Urgent Alert from Admin" 
+        : "📢 Announcement from Admin";
+
       await sendBroadcastAlert({
-        title: title.trim(),
-        message: message.trim(),
+        title: derivedTitle,
+        message: cleanMsg,
         targetType,
         targetMember: targetType === "individual" ? targetMember : undefined,
         priority,
       });
 
-      // Reset form
-      setTitle("");
       setMessage("");
       showToast(
         targetType === "all"
-          ? "📢 পুরো টিমের কাছে নোটিফিকেশন পাঠানো হয়েছে এবং তাদের ডিভাইসে রিংটোন বাজছে!"
-          : `📢 ${targetMember}-এর কাছে নোটিফিকেশন পাঠানো হয়েছে এবং তার ডিভাইসে রিংটোন বাজছে!`
+          ? "Broadcast sent to all team members! Device ringtones triggered."
+          : `Alert sent directly to ${targetMember}! Device ringtone triggered.`
       );
     } catch (err) {
       console.error("Failed to send alert:", err);
-      alert("অ্যালার্ট পাঠাতে সমস্যা হয়েছে, অনুগ্রহ করে আবার চেষ্টা করুন।");
+      alert("Failed to send alert. Please try again.");
     } finally {
       setIsSending(false);
     }
@@ -95,7 +96,7 @@ export default function AdminAlertsPage() {
               Alerts &amp; Announcements
             </h1>
             <p className="text-xs sm:text-sm text-[#64748B] font-medium mt-0.5">
-              Send instant notices and alerts with ringtone to all team members or specific individuals.
+              Send instant notices and alerts with ringtone to members in real-time.
             </p>
           </div>
         </div>
@@ -126,24 +127,24 @@ export default function AdminAlertsPage() {
       {/* Main 2-Column Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Column: Simple Compose Form (7 cols) */}
+        {/* Left Column: Compose Form (7 cols) */}
         <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-[#E3EAF5] shadow-sm space-y-5">
           <div className="flex items-center justify-between border-b border-[#E3EAF5] pb-4">
             <div className="flex items-center gap-2">
               <Megaphone size={18} className="text-[#1677FF]" />
-              <h2 className="text-base font-black text-[#10254F]">Create New Alert</h2>
+              <h2 className="text-base font-black text-[#10254F]">Send New Alert</h2>
             </div>
-            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              🎵 Custom Ringtone Connected
+            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              Custom Ringtone Ready
             </span>
           </div>
 
           <form onSubmit={handleSendAlert} className="space-y-4">
             
-            {/* 1. Target Audience (All Team or Specific Member) */}
+            {/* Target Audience (All Team or Specific Member) */}
             <div>
-              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase">
-                কাকে পাঠাবেন (Target Audience) *
+              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase tracking-wider">
+                Send To *
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -157,8 +158,8 @@ export default function AdminAlertsPage() {
                 >
                   <Users size={18} />
                   <div>
-                    <p className="text-[12px] leading-none">পুরো টিম (All Team)</p>
-                    <p className="text-[10px] opacity-75 mt-0.5">অফিসের সব সদস্য</p>
+                    <p className="text-[12px] leading-none font-bold">Entire Team</p>
+                    <p className="text-[10px] opacity-75 mt-0.5">All staff members</p>
                   </div>
                 </button>
 
@@ -173,8 +174,8 @@ export default function AdminAlertsPage() {
                 >
                   <User size={18} />
                   <div>
-                    <p className="text-[12px] leading-none">নির্দিষ্ট মেম্বার (Individual)</p>
-                    <p className="text-[10px] opacity-75 mt-0.5">শুধু একজন সদস্য</p>
+                    <p className="text-[12px] leading-none font-bold">Individual Member</p>
+                    <p className="text-[10px] opacity-75 mt-0.5">Single employee only</p>
                   </div>
                 </button>
               </div>
@@ -183,7 +184,7 @@ export default function AdminAlertsPage() {
               {targetType === "individual" && (
                 <div className="mt-3 p-3 bg-purple-50/40 border border-purple-200 rounded-2xl space-y-1.5 animate-in fade-in">
                   <label className="text-[11px] font-bold text-purple-900 uppercase">
-                    মেম্বার সিলেক্ট করুন (Select Member) *
+                    Select Member *
                   </label>
                   <select
                     value={targetMember}
@@ -200,10 +201,10 @@ export default function AdminAlertsPage() {
               )}
             </div>
 
-            {/* 2. Alert Priority (Normal / Urgent) */}
+            {/* Alert Priority */}
             <div>
-              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase">
-                অ্যালার্টের ধরন (Priority)
+              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase tracking-wider">
+                Priority
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -216,7 +217,7 @@ export default function AdminAlertsPage() {
                   }`}
                 >
                   <Megaphone size={14} />
-                  <span>সাধারণ নোটিশ (Notice)</span>
+                  <span>General Notice</span>
                 </button>
                 <button
                   type="button"
@@ -228,38 +229,23 @@ export default function AdminAlertsPage() {
                   }`}
                 >
                   <AlertTriangle size={14} />
-                  <span>জরুরি অ্যালার্ট (Urgent)</span>
+                  <span>Urgent Alert</span>
                 </button>
               </div>
             </div>
 
-            {/* 3. বিষয় (Subject / Title) */}
+            {/* Single Input: Message */}
             <div>
-              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase">
-                বিষয় (Subject / Title) *
-              </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="যেমন: আজকের জরুরি মিটিং / ক্লায়েন্ট আপডেট..."
-                className="w-full px-4 py-2.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-bold text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white"
-              />
-            </div>
-
-            {/* 4. বিস্তারিত মেসেজ (Detailed Message) */}
-            <div>
-              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase">
-                বিস্তারিত মেসেজ (Detailed Message) *
+              <label className="block text-[12px] font-bold text-[#10254F] mb-1.5 uppercase tracking-wider">
+                Message *
               </label>
               <textarea
                 required
-                rows={4}
+                rows={5}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="বিস্তারিত বার্তা এখানে লিখুন..."
-                className="w-full p-3.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl text-[13px] font-medium text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white resize-none"
+                placeholder="Type your alert message here... (e.g. Urgent meeting today at 5:00 PM on Google Meet. Please join on time.)"
+                className="w-full p-4 bg-[#F8FAFC] border border-[#E3EAF5] rounded-2xl text-[14px] font-medium text-[#10254F] focus:outline-none focus:ring-2 focus:ring-[#1677FF] focus:bg-white resize-none leading-relaxed"
               />
             </div>
 
@@ -268,7 +254,7 @@ export default function AdminAlertsPage() {
               <button
                 type="submit"
                 disabled={isSending}
-                className={`w-full py-3 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                className={`w-full py-3.5 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
                   priority === "urgent"
                     ? "bg-red-600 hover:bg-red-700 shadow-red-200"
                     : "bg-[#1677FF] hover:bg-blue-700 shadow-blue-200"
@@ -283,21 +269,21 @@ export default function AdminAlertsPage() {
           </form>
         </div>
 
-        {/* Right Column: Sent Alerts History & Acknowledgment Log (5 cols) */}
+        {/* Right Column: Sent Alerts History (5 cols) */}
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-white rounded-3xl p-6 border border-[#E3EAF5] shadow-sm">
             <div className="flex items-center justify-between border-b border-[#E3EAF5] pb-3 mb-4">
               <h3 className="text-sm font-black text-[#10254F] flex items-center gap-2">
                 <Clock size={16} className="text-[#1677FF]" />
-                <span>Recent Alerts History ({broadcastAlerts.length})</span>
+                <span>Recent Sent Alerts ({broadcastAlerts.length})</span>
               </h3>
             </div>
 
             {broadcastAlerts.length === 0 ? (
               <div className="py-12 text-center text-gray-400 space-y-2">
                 <Bell size={28} className="mx-auto opacity-30" />
-                <p className="text-xs font-semibold">কোনো অ্যালার্ট হিস্ট্রি পাওয়া যায়নি।</p>
-                <p className="text-[11px] text-gray-400">নতুন অ্যালার্ট তৈরি করতে বামপাশের ফর্ম ব্যবহার করুন।</p>
+                <p className="text-xs font-semibold">No alerts sent yet.</p>
+                <p className="text-[11px] text-gray-400">Use the form on the left to send a new alert.</p>
               </div>
             ) : (
               <div className="space-y-3.5 max-h-[600px] overflow-y-auto pr-1">
@@ -316,20 +302,20 @@ export default function AdminAlertsPage() {
                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
                             isUrgent ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
                           }`}>
-                            {isUrgent ? "🚨 Urgent" : "📢 Notice"}
+                            {isUrgent ? "Urgent" : "Notice"}
                           </span>
 
                           <span className="text-[10px] font-bold bg-white text-gray-600 px-2 py-0.5 rounded border border-gray-200">
-                            {alert.targetType === "all" ? "👥 All Team" : `👤 ${alert.targetMember}`}
+                            {alert.targetType === "all" ? "Entire Team" : alert.targetMember}
                           </span>
                         </div>
 
                         <button
                           type="button"
                           onClick={() => {
-                            if (confirm(`Delete alert "${alert.title}"?`)) {
+                            if (confirm(`Delete this alert?`)) {
                               deleteBroadcastAlert(alert.id);
-                              showToast("অ্যালার্ট ডিলিট করা হয়েছে।");
+                              showToast("Alert deleted.");
                             }
                           }}
                           className="text-gray-300 hover:text-red-500 p-1 rounded transition-colors"
@@ -339,12 +325,9 @@ export default function AdminAlertsPage() {
                         </button>
                       </div>
 
-                      {/* Title & Message */}
+                      {/* Message Content */}
                       <div>
-                        <h4 className="text-[13px] font-black text-[#10254F] leading-snug">
-                          {alert.title}
-                        </h4>
-                        <p className="text-[12px] text-[#475569] font-medium mt-1 line-clamp-3 whitespace-pre-wrap">
+                        <p className="text-[13px] text-[#1E293B] font-semibold leading-relaxed whitespace-pre-wrap">
                           {alert.message}
                         </p>
                       </div>
