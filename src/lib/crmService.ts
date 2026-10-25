@@ -395,6 +395,54 @@ export async function deleteHRNoticeDb(id: string) {
   if (error) console.error("deleteHRNoticeDb error:", error);
 }
 
+export function isRealOfficeRule(d: any): boolean {
+  if (!d || !d.id) return false;
+  const id = String(d.id);
+  const cat = String(d.category || "").trim();
+  const desc = String(d.description || "").trim();
+
+  // Exclude internal system IDs
+  if (
+    id === "sys_attendance_config" ||
+    id.startsWith("sys_") ||
+    id.startsWith("psub_") ||
+    id.startsWith("rep_") ||
+    id.startsWith("alert_")
+  ) {
+    return false;
+  }
+
+  // Exclude system categories used for background features
+  if (
+    cat === "Push_Subscription" ||
+    cat === "Daily Report" ||
+    cat === "Broadcast Alert" ||
+    cat === "Timing & Attendance Config"
+  ) {
+    return false;
+  }
+
+  // If description is a raw JSON payload, exclude it
+  if (desc.startsWith("{") && desc.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(desc);
+      if (
+        parsed.endpoint ||
+        parsed.completedTasks ||
+        parsed.acknowledgedBy ||
+        parsed.graceTime ||
+        parsed.targetType
+      ) {
+        return false;
+      }
+    } catch {
+      // not JSON
+    }
+  }
+
+  return true;
+}
+
 export async function fetchOfficeRulesDb(): Promise<OfficeRule[] | null> {
   const { data, error } = await supabase.from("office_rules").select("*");
   if (error) {
@@ -402,7 +450,7 @@ export async function fetchOfficeRulesDb(): Promise<OfficeRule[] | null> {
     return null;
   }
   return data
-    .filter((d: any) => d.id !== "sys_attendance_config")
+    .filter(isRealOfficeRule)
     .map((d: any) => ({
       id: d.id,
       category: d.category,

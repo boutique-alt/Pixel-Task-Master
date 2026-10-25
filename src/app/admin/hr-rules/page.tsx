@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useCRM, HRNotice, OfficeRule } from "@/context/CRMContext";
+import { isRealOfficeRule } from "@/lib/crmService";
 import {
   BookOpen,
   Megaphone,
@@ -25,6 +26,8 @@ export default function AdminHRRulesPage() {
     updateOfficeRule,
     deleteOfficeRule,
   } = useCRM();
+
+  const validRules = officeRules.filter(isRealOfficeRule);
 
   // New Notice Form
   const [noticeTitle, setNoticeTitle] = useState("");
@@ -276,7 +279,7 @@ export default function AdminHRRulesPage() {
               Simple point-by-point office rules visible to all members
             </p>
           </div>
-          <span className="text-xs font-bold text-gray-400">{officeRules.length} Rules</span>
+          <span className="text-xs font-bold text-gray-400">{validRules.length} Rules</span>
         </div>
 
         {/* Simple Add Rule Form */}
@@ -319,12 +322,12 @@ export default function AdminHRRulesPage() {
 
         {/* Office Rules List */}
         <div className="space-y-2.5">
-          {officeRules.length === 0 ? (
+          {validRules.length === 0 ? (
             <p className="text-xs text-center text-gray-400 py-4 font-semibold">
               No office rules added yet.
             </p>
           ) : (
-            officeRules.map((rule) => {
+            validRules.map((rule) => {
               const isEditing = editingRuleId === rule.id;
               return (
                 <div

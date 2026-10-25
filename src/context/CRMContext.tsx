@@ -33,6 +33,7 @@ import {
   fetchOfficeRulesDb,
   upsertOfficeRuleDb,
   deleteOfficeRuleDb,
+  isRealOfficeRule,
   fetchAttendanceConfigDb,
   upsertAttendanceConfigDb,
   fetchActivitiesDb,
@@ -592,7 +593,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (savedLeaveTypes) setLeaveTypes(JSON.parse(savedLeaveTypes));
       if (savedLeaveRequests) setLeaveRequests(JSON.parse(savedLeaveRequests));
       if (savedHrNotices) setHrNotices(JSON.parse(savedHrNotices));
-      if (savedOfficeRules) setOfficeRules(JSON.parse(savedOfficeRules));
+      if (savedOfficeRules) {
+        try {
+          const parsedRules = JSON.parse(savedOfficeRules);
+          if (Array.isArray(parsedRules)) {
+            const cleanRules = parsedRules.filter(isRealOfficeRule);
+            setOfficeRules(cleanRules.length > 0 ? cleanRules : INITIAL_OFFICE_RULES);
+          }
+        } catch {
+          setOfficeRules(INITIAL_OFFICE_RULES);
+        }
+      }
       if (savedBankDetails) setBankDetails(JSON.parse(savedBankDetails));
       if (savedSalaryPayments) setSalaryPayments(JSON.parse(savedSalaryPayments));
       if (savedDailyReports) setDailyReports(JSON.parse(savedDailyReports));
@@ -760,7 +771,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           if (dbBankDetails && dbBankDetails.length > 0) setBankDetails(dbBankDetails);
           if (dbPayments && dbPayments.length > 0) setSalaryPayments(dbPayments);
           if (dbNotices && dbNotices.length > 0) setHrNotices(dbNotices);
-          if (dbRules && dbRules.length > 0) setOfficeRules(dbRules);
+          if (dbRules && dbRules.length > 0) {
+            const cleanDbRules = dbRules.filter(isRealOfficeRule);
+            if (cleanDbRules.length > 0) setOfficeRules(cleanDbRules);
+          }
           if (dbActs && dbActs.length > 0) setActivities(dbActs);
           if (dbReports && dbReports.length > 0) setDailyReports(dbReports);
           if (dbAlerts && dbAlerts.length > 0) setBroadcastAlerts(dbAlerts);
@@ -799,7 +813,12 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         } else if (e.key === STORAGE_KEYS.HR_NOTICES && e.newValue) {
           setHrNotices(JSON.parse(e.newValue));
         } else if (e.key === STORAGE_KEYS.OFFICE_RULES && e.newValue) {
-          setOfficeRules(JSON.parse(e.newValue));
+          try {
+            const parsed = JSON.parse(e.newValue);
+            if (Array.isArray(parsed)) {
+              setOfficeRules(parsed.filter(isRealOfficeRule));
+            }
+          } catch {}
         } else if (e.key === STORAGE_KEYS.BANK_DETAILS && e.newValue) {
           setBankDetails(JSON.parse(e.newValue));
         } else if (e.key === STORAGE_KEYS.SALARY_PAYMENTS && e.newValue) {
@@ -897,7 +916,12 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isHydrated) return;
-    try { localStorage.setItem(STORAGE_KEYS.OFFICE_RULES, JSON.stringify(officeRules)); } catch (e) { console.error(e); }
+    try {
+      const cleanToStore = officeRules.filter(isRealOfficeRule);
+      localStorage.setItem(STORAGE_KEYS.OFFICE_RULES, JSON.stringify(cleanToStore));
+    } catch (e) {
+      console.error(e);
+    }
   }, [officeRules, isHydrated]);
 
   useEffect(() => {

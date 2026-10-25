@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useCRM } from "@/context/CRMContext";
+import { isRealOfficeRule } from "@/lib/crmService";
 import {
   BookOpen,
   Megaphone,
@@ -15,6 +16,7 @@ export default function MemberHRRulesPage() {
   const { hrNotices, officeRules, attendanceConfig, leaveTypes } = useCRM();
 
   const activeLeaveTypes = leaveTypes.filter((lt) => lt.active);
+  const validRules = officeRules.filter(isRealOfficeRule);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-10">
@@ -100,11 +102,11 @@ export default function MemberHRRulesPage() {
             <CheckCircle2 size={18} className="text-emerald-600" />
             Office Rules &amp; Guidelines
           </h2>
-          <span className="text-xs font-bold text-gray-400">{officeRules.length} Rules</span>
+          <span className="text-xs font-bold text-gray-400">{validRules.length} Rules</span>
         </div>
 
         <div className="space-y-3">
-          {officeRules.map((rule) => (
+          {validRules.map((rule) => (
             <div
               key={rule.id}
               className="p-4 rounded-2xl bg-gray-50/80 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
