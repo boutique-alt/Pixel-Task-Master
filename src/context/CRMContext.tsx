@@ -34,6 +34,7 @@ import {
   upsertOfficeRuleDb,
   deleteOfficeRuleDb,
   isRealOfficeRule,
+  isWifiIpMatched,
   fetchAttendanceConfigDb,
   upsertAttendanceConfigDb,
   fetchActivitiesDb,
@@ -368,7 +369,7 @@ const INITIAL_ATTENDANCE_CONFIG: OfficeAttendanceConfig = {
   officeEndTime: "18:30",
   targetHours: 8,
   wifiName: "Panda WiFi",
-  registeredWifiIp: "103.145.22.10",
+  registeredWifiIp: "49.37.8.225, 49.37.8.*, 103.145.22.10",
   requireWifiOrGps: true,
   officeLat: 22.5726,
   officeLng: 88.3639,
@@ -684,12 +685,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         setCurrentMember(parsedClients[0].member);
       }
 
-      // 3. Detect live public IP for Panda WiFi verification
-      fetch("https://api.ipify.org?format=json")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.ip) {
-            setCurrentNetworkIp(String(data.ip).trim());
+      // 3. Detect live public IP for Panda WiFi verification using fast multi-provider race
+      Promise.any([
+        fetch("https://api.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
+        fetch("https://api64.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
+        fetch("https://ipinfo.io/json").then((r) => r.json()).then((d) => d.ip),
+      ])
+        .then((ip) => {
+          if (ip) {
+            setCurrentNetworkIp(String(ip).trim());
           }
         })
         .catch(() => {
@@ -1344,10 +1348,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
     if (!laptopOk) return;
 
-    const wifiOk =
-      Boolean(currentNetworkIp) &&
-      Boolean(attendanceConfig.registeredWifiIp) &&
-      currentNetworkIp.trim().toLowerCase() === attendanceConfig.registeredWifiIp.trim().toLowerCase();
+    const wifiOk = isWifiIpMatched(currentNetworkIp, attendanceConfig.registeredWifiIp);
 
     if (wifiOk) {
       const viaLabel = `${attendanceConfig.wifiName || "Panda WiFi"}${

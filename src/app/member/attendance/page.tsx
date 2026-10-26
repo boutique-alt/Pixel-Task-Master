@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useCRM, parseTimeToMs } from "@/context/CRMContext";
+import { isWifiIpMatched } from "@/lib/crmService";
 import {
   Wifi,
   MapPin,
@@ -85,11 +86,8 @@ export default function MemberAttendancePage() {
   // 1. Device check: No admin device approval required! Any signed-in device can check in
   const isLaptopApproved = true;
 
-  // 2. Panda WiFi check
-  const isWifiMatched =
-    Boolean(attendanceConfig.registeredWifiIp) &&
-    Boolean(currentNetworkIp) &&
-    currentNetworkIp.trim().toLowerCase() === attendanceConfig.registeredWifiIp.trim().toLowerCase();
+  // 2. Panda WiFi check (matches exact, subnet, or multiple allowed IPs)
+  const isWifiMatched = isWifiIpMatched(currentNetworkIp, attendanceConfig.registeredWifiIp);
 
   // 3. GPS check
   const isGpsMatched = gpsStatus === "matched";

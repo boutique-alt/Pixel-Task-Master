@@ -474,6 +474,44 @@ export async function deleteOfficeRuleDb(id: string) {
   if (error) console.error("deleteOfficeRuleDb error:", error);
 }
 
+/**
+ * Checks if current network IP matches the registered Panda WiFi IP,
+ * supporting multiple comma-separated IPs, wildcard prefixes, and /24 subnet matching.
+ */
+export function isWifiIpMatched(currentIp: string, registeredIpConfig?: string): boolean {
+  if (!currentIp || !registeredIpConfig) return false;
+  const cleanCurrent = currentIp.trim().toLowerCase();
+
+  const allowedTokens = registeredIpConfig
+    .split(/[\s,;|]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (allowedTokens.length === 0) return false;
+
+  for (const token of allowedTokens) {
+    // 1. Exact match
+    if (cleanCurrent === token) return true;
+
+    // 2. Wildcard match (e.g. "49.37.8.*" or "49.37.*")
+    if (token.includes("*")) {
+      const prefix = token.replace(/\*+/g, "");
+      if (cleanCurrent.startsWith(prefix)) return true;
+    }
+
+    // 3. Class C subnet prefix match (e.g., if registered is "49.37.8.225", and user connects on "49.37.8.44")
+    const curParts = cleanCurrent.split(".");
+    const tokParts = token.split(".");
+    if (curParts.length === 4 && tokParts.length === 4) {
+      if (curParts[0] === tokParts[0] && curParts[1] === tokParts[1] && curParts[2] === tokParts[2]) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // 9.1 Attendance Config Cloud Sync via office_rules
 export async function fetchAttendanceConfigDb(): Promise<OfficeAttendanceConfig | null> {
   try {
