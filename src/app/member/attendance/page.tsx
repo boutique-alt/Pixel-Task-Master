@@ -82,30 +82,28 @@ export default function MemberAttendancePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 1. Laptop check
-  const thisDeviceEntry = authorizedDevices.find((d) => d.deviceId === currentDeviceId);
-  const isLaptopApproved =
-    !attendanceConfig.requireAuthorizedLaptop ||
-    Boolean(
-      thisDeviceEntry &&
-        thisDeviceEntry.status === "Approved" &&
-        (thisDeviceEntry.assignedMember === "All (Office Laptop)" ||
-          thisDeviceEntry.assignedMember.toLowerCase() === activeMemberName.toLowerCase())
-    );
+  // 1. Device check: No admin device approval required! Any signed-in device can check in
+  const isLaptopApproved = true;
 
   // 2. Panda WiFi check
   const isWifiMatched =
     Boolean(attendanceConfig.registeredWifiIp) &&
-    currentNetworkIp.trim() === attendanceConfig.registeredWifiIp.trim();
+    Boolean(currentNetworkIp) &&
+    currentNetworkIp.trim().toLowerCase() === attendanceConfig.registeredWifiIp.trim().toLowerCase();
 
   // 3. GPS check
   const isGpsMatched = gpsStatus === "matched";
-  const isPresenceVerified = !attendanceConfig.requireWifiOrGps || isWifiMatched || isGpsMatched;
-  const canCheckInOrOut = isLaptopApproved && isPresenceVerified;
+
+  // 4. Presence verification (Must have either Panda WiFi OR Verified GPS)
+  const isPresenceRequired = attendanceConfig.requireWifiOrGps !== false;
+  const isPresenceVerified = isPresenceRequired ? (isWifiMatched || isGpsMatched) : true;
+
+  // CAN CHECK IN OR OUT: Allowed whenever member is present at office (WiFi or GPS)
+  const canCheckInOrOut = isPresenceVerified;
 
   const getVerificationLabel = () => {
-    if (isWifiMatched) return `${attendanceConfig.wifiName || "Panda WiFi"} + Laptop`;
-    if (isGpsMatched) return "Office GPS + Laptop";
+    if (isWifiMatched) return `${attendanceConfig.wifiName || "Panda WiFi"}`;
+    if (isGpsMatched) return "Office GPS";
     return "Office Verified";
   };
 
@@ -158,16 +156,28 @@ export default function MemberAttendancePage() {
   }, [attendanceConfig.officeLat, attendanceConfig.officeLng]);
 
   // Auto Check-In on 1st connection of the day
+  // STRICT GUARD: Only auto-check-in if laptop is approved AND (wifi is matched OR gps is matched)!
   useEffect(() => {
+    const isStrictPresenceOk = isWifiMatched || isGpsMatched || attendanceConfig.requireWifiOrGps === false;
     if (
       todayStr &&
       attendanceConfig.autoCheckInOnOpen !== false &&
       canCheckInOrOut &&
+      isStrictPresenceOk &&
       !todayRecord
     ) {
       checkInMember(activeMemberName, getVerificationLabel());
     }
-  }, [todayStr, attendanceConfig.autoCheckInOnOpen, canCheckInOrOut, isWifiMatched, isGpsMatched, Boolean(todayRecord), activeMemberName]);
+  }, [
+    todayStr,
+    attendanceConfig.autoCheckInOnOpen,
+    attendanceConfig.requireWifiOrGps,
+    canCheckInOrOut,
+    isWifiMatched,
+    isGpsMatched,
+    Boolean(todayRecord),
+    activeMemberName,
+  ]);
 
   const getLiveElapsedDisplay = () => {
     if (!todayRecord) return { text: "0h 00m", percent: 0 };
@@ -227,16 +237,10 @@ export default function MemberAttendancePage() {
         {/* Compact 3 Security Badges in One Simple Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F8FAFC] p-3.5 rounded-2xl border border-gray-100">
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Pill 1: Office Laptop */}
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${
-                isLaptopApproved
-                  ? "bg-emerald-100/80 text-emerald-800"
-                  : "bg-red-100 text-red-700"
-              }`}
-            >
-              <Laptop size={14} />
-              {isLaptopApproved ? "Office Laptop Verified" : "Laptop Not Approved"}
+            {/* Pill 1: Account Verified */}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100/80 text-emerald-800">
+              <CheckCircle2 size={14} />
+              Account: {activeMemberName}
             </span>
 
             {/* Pill 2: Panda WiFi */}
@@ -278,21 +282,10 @@ export default function MemberAttendancePage() {
 
           {/* Right side quick action if needed */}
           <div className="flex items-center gap-2">
-            {!isLaptopApproved && (
-              <button
-                onClick={() =>
-                  requestDeviceAuthorization(activeMemberName, `${activeMemberName}'s Office Laptop`)
-                }
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors"
-              >
-                <Send size={12} />
-                {thisDeviceEntry?.status === "Pending" ? "Approval Pending" : "Approve This Laptop"}
-              </button>
-            )}
             {!isWifiMatched && !isGpsMatched && (
               <button
                 onClick={handleVerifyGps}
-                className="bg-white hover:bg-gray-50 text-blue-600 border border-blue-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+                className="bg-white hover:bg-gray-50 text-blue-600 border border-blue-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors cursor-pointer shadow-sm"
               >
                 <Navigation size={12} /> Check GPS
               </button>
@@ -356,7 +349,7 @@ export default function MemberAttendancePage() {
           {!canCheckInOrOut ? (
             <div className="w-full py-3.5 bg-red-50 border border-red-200 text-red-700 font-bold text-xs rounded-2xl flex items-center justify-center gap-2">
               <XCircle size={16} />
-              Connect to Office &ldquo;{attendanceConfig.wifiName}&rdquo; or Office GPS from an Approved Laptop to Check In/Out
+              Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In/Out
             </div>
           ) : !todayRecord ? (
             <button

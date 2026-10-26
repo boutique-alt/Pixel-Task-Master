@@ -373,7 +373,7 @@ const INITIAL_ATTENDANCE_CONFIG: OfficeAttendanceConfig = {
   officeLat: 22.5726,
   officeLng: 88.3639,
   allowedRadiusMeters: 150,
-  requireAuthorizedLaptop: true,
+  requireAuthorizedLaptop: false,
   autoCheckInOnOpen: true,
 };
 
@@ -611,13 +611,27 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
       let parsedAttConfig: OfficeAttendanceConfig = INITIAL_ATTENDANCE_CONFIG;
       if (savedAttConfig) {
-        parsedAttConfig = JSON.parse(savedAttConfig);
-        setAttendanceConfig(parsedAttConfig);
+        try {
+          const loadedCfg = JSON.parse(savedAttConfig);
+          parsedAttConfig = {
+            ...INITIAL_ATTENDANCE_CONFIG,
+            ...loadedCfg,
+            requireWifiOrGps: loadedCfg.requireWifiOrGps !== undefined ? loadedCfg.requireWifiOrGps : true,
+            requireAuthorizedLaptop: loadedCfg.requireAuthorizedLaptop !== undefined ? loadedCfg.requireAuthorizedLaptop : true,
+          };
+          setAttendanceConfig(parsedAttConfig);
+        } catch {
+          setAttendanceConfig(INITIAL_ATTENDANCE_CONFIG);
+        }
       } else if (legacyAttConfig) {
-        const oldCfg = JSON.parse(legacyAttConfig);
-        parsedAttConfig = { ...INITIAL_ATTENDANCE_CONFIG, ...oldCfg, autoCheckInOnOpen: true };
-        setAttendanceConfig(parsedAttConfig);
-        localStorage.setItem(STORAGE_KEYS.ATTENDANCE_CONFIG, JSON.stringify(parsedAttConfig));
+        try {
+          const oldCfg = JSON.parse(legacyAttConfig);
+          parsedAttConfig = { ...INITIAL_ATTENDANCE_CONFIG, ...oldCfg, autoCheckInOnOpen: true };
+          setAttendanceConfig(parsedAttConfig);
+          localStorage.setItem(STORAGE_KEYS.ATTENDANCE_CONFIG, JSON.stringify(parsedAttConfig));
+        } catch {
+          setAttendanceConfig(INITIAL_ATTENDANCE_CONFIG);
+        }
       }
 
       if (savedAuthDevices) {
@@ -675,16 +689,11 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         .then((res) => res.json())
         .then((data) => {
           if (data && data.ip) {
-            setCurrentNetworkIp(data.ip);
-            // If this is the very first run, register current IP as Panda WiFi IP so it matches out of the box
-            if (!savedAttConfig) {
-              setAttendanceConfig((prev) => ({ ...prev, registeredWifiIp: data.ip }));
-            }
+            setCurrentNetworkIp(String(data.ip).trim());
           }
         })
         .catch(() => {
-          // Fallback local office gateway IP if offline
-          setCurrentNetworkIp(parsedAttConfig.registeredWifiIp || "103.145.22.10");
+          setCurrentNetworkIp("");
         });
 
       // 4. Live fetch from Supabase Cloud Database
@@ -725,9 +734,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           ]);
 
           if (dbConfig) {
-            setAttendanceConfig(dbConfig);
+            const mergedDbConfig: OfficeAttendanceConfig = {
+              ...INITIAL_ATTENDANCE_CONFIG,
+              ...dbConfig,
+              requireWifiOrGps: dbConfig.requireWifiOrGps !== undefined ? dbConfig.requireWifiOrGps : true,
+              requireAuthorizedLaptop: dbConfig.requireAuthorizedLaptop !== undefined ? dbConfig.requireAuthorizedLaptop : true,
+            };
+            setAttendanceConfig(mergedDbConfig);
             try {
-              localStorage.setItem(STORAGE_KEYS.ATTENDANCE_CONFIG, JSON.stringify(dbConfig));
+              localStorage.setItem(STORAGE_KEYS.ATTENDANCE_CONFIG, JSON.stringify(mergedDbConfig));
             } catch (e) {
               console.error(e);
             }
@@ -1319,7 +1334,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
     const devEntry = authorizedDevices.find((d) => d.deviceId === currentDeviceId);
     const laptopOk =
-      !attendanceConfig.requireAuthorizedLaptop ||
+      attendanceConfig.requireAuthorizedLaptop === false ||
       Boolean(
         devEntry &&
           devEntry.status === "Approved" &&
@@ -1332,7 +1347,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     const wifiOk =
       Boolean(currentNetworkIp) &&
       Boolean(attendanceConfig.registeredWifiIp) &&
-      currentNetworkIp.trim() === attendanceConfig.registeredWifiIp.trim();
+      currentNetworkIp.trim().toLowerCase() === attendanceConfig.registeredWifiIp.trim().toLowerCase();
 
     if (wifiOk) {
       const viaLabel = `${attendanceConfig.wifiName || "Panda WiFi"}${
