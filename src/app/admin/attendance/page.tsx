@@ -49,6 +49,7 @@ export default function AdminAttendancePage() {
   const [filterMember, setFilterMember] = useState("all");
   const [filterDate, setFilterDate] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
+  const [isCapturingGps, setIsCapturingGps] = useState(false);
 
   // Daily Reports Filters & Copy state
   const [reportFilterMember, setReportFilterMember] = useState("all");
@@ -79,14 +80,45 @@ export default function AdminAttendancePage() {
   };
 
   const handleCaptureOfficeGps = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
+    if (!navigator.geolocation) {
+      showToast("Geolocation is not supported by this browser.");
+      return;
+    }
+    setIsCapturingGps(true);
+    showToast("Detecting exact GPS coordinates...");
+
+    const onCaptureSuccess = (pos: GeolocationPosition) => {
+      setIsCapturingGps(false);
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
+      const acc = Math.round(pos.coords.accuracy || 0);
       updateAttendanceConfig({
-        officeLat: Number(pos.coords.latitude.toFixed(6)),
-        officeLng: Number(pos.coords.longitude.toFixed(6)),
+        officeLat: lat,
+        officeLng: lng,
+        allowedRadiusMeters: attendanceConfig.allowedRadiusMeters || 100,
       });
-      showToast("Office GPS location saved!");
-    });
+      showToast(`Office GPS saved! (${lat}, ${lng} ±${acc}m)`);
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onCaptureSuccess,
+      (err) => {
+        if (err.code !== 1) {
+          navigator.geolocation.getCurrentPosition(
+            onCaptureSuccess,
+            (err2) => {
+              setIsCapturingGps(false);
+              showToast(`GPS Error: ${err2.message || "Failed to detect location"}`);
+            },
+            { enableHighAccuracy: false, timeout: 10000 }
+          );
+        } else {
+          setIsCapturingGps(false);
+          showToast("Location permission denied. Please allow location access in browser.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
   };
 
   const seenMemberDates = new Set<string>();
@@ -775,10 +807,10 @@ export default function AdminAttendancePage() {
                     <label className="text-[10px] font-bold text-gray-400 uppercase">Radius (m)</label>
                     <input
                       type="number"
-                      value={attendanceConfig.allowedRadiusMeters}
+                      value={attendanceConfig.allowedRadiusMeters || 100}
                       onChange={(e) =>
                         updateAttendanceConfig({
-                          allowedRadiusMeters: Number(e.target.value) || 150,
+                          allowedRadiusMeters: Number(e.target.value) || 100,
                         })
                       }
                       className="w-full text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-2 py-1.5 mt-0.5"
@@ -788,9 +820,11 @@ export default function AdminAttendancePage() {
               </div>
               <button
                 onClick={handleCaptureOfficeGps}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                disabled={isCapturingGps}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
-                Auto-Set Current GPS as Office
+                <MapPin size={14} />
+                {isCapturingGps ? "Capturing Exact GPS..." : "Auto-Set Current GPS as Office"}
               </button>
             </div>
 

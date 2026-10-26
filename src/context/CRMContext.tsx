@@ -373,7 +373,7 @@ const INITIAL_ATTENDANCE_CONFIG: OfficeAttendanceConfig = {
   requireWifiOrGps: true,
   officeLat: 22.5726,
   officeLng: 88.3639,
-  allowedRadiusMeters: 150,
+  allowedRadiusMeters: 100,
   requireAuthorizedLaptop: false,
   autoCheckInOnOpen: true,
 };
@@ -742,7 +742,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
               ...INITIAL_ATTENDANCE_CONFIG,
               ...dbConfig,
               requireWifiOrGps: dbConfig.requireWifiOrGps !== undefined ? dbConfig.requireWifiOrGps : true,
-              requireAuthorizedLaptop: dbConfig.requireAuthorizedLaptop !== undefined ? dbConfig.requireAuthorizedLaptop : true,
+              requireAuthorizedLaptop: dbConfig.requireAuthorizedLaptop !== undefined ? dbConfig.requireAuthorizedLaptop : false,
+              allowedRadiusMeters: dbConfig.allowedRadiusMeters || 100,
             };
             setAttendanceConfig(mergedDbConfig);
             try {
@@ -1365,29 +1366,37 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       attendanceConfig.officeLat !== null &&
       attendanceConfig.officeLng !== null
     ) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const R = 6371e3;
-          const toRad = (deg: number) => (deg * Math.PI) / 180;
-          const dLat = toRad(attendanceConfig.officeLat! - pos.coords.latitude);
-          const dLon = toRad(attendanceConfig.officeLng! - pos.coords.longitude);
-          const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(pos.coords.latitude)) *
-              Math.cos(toRad(attendanceConfig.officeLat!)) *
-              Math.sin(dLon / 2) *
-              Math.sin(dLon / 2);
-          const dist = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+      const checkGpsPos = (pos: GeolocationPosition) => {
+        const R = 6371e3;
+        const toRad = (deg: number) => (deg * Math.PI) / 180;
+        const dLat = toRad(attendanceConfig.officeLat! - pos.coords.latitude);
+        const dLon = toRad(attendanceConfig.officeLng! - pos.coords.longitude);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(pos.coords.latitude)) *
+            Math.cos(toRad(attendanceConfig.officeLat!)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const dist = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 
-          if (dist <= (attendanceConfig.allowedRadiusMeters || 150)) {
-            const gpsLabel = `Office GPS (${dist}m)${
-              attendanceConfig.requireAuthorizedLaptop ? " + Office Laptop" : ""
-            } (Auto)`;
-            checkInMember(activeMember, gpsLabel);
+        if (dist <= (attendanceConfig.allowedRadiusMeters || 100)) {
+          const gpsLabel = `Office GPS (${dist}m) (Auto)`;
+          checkInMember(activeMember, gpsLabel);
+        }
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        checkGpsPos,
+        (err) => {
+          if (err.code !== 1) {
+            navigator.geolocation.getCurrentPosition(
+              checkGpsPos,
+              () => {},
+              { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+            );
           }
         },
-        () => {},
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
       );
     }
   }, [

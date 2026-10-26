@@ -39,6 +39,8 @@ export default function MemberAttendancePage() {
     attendanceRecords,
     currentDeviceId,
     currentNetworkIp,
+    sessionUser,
+    updateAttendanceConfig,
     requestDeviceAuthorization,
     checkInMember,
     checkOutMember,
@@ -54,6 +56,50 @@ export default function MemberAttendancePage() {
   const [gpsStatus, setGpsStatus] = useState<"idle" | "checking" | "matched" | "outside" | "error">("idle");
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isSettingOfficeGps, setIsSettingOfficeGps] = useState(false);
+
+  const handleSaveCurrentAsOfficeGps = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setIsSettingOfficeGps(true);
+
+    const onSaveSuccess = (pos: GeolocationPosition) => {
+      setIsSettingOfficeGps(false);
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
+      const acc = Math.round(pos.coords.accuracy || 0);
+      updateAttendanceConfig({
+        officeLat: lat,
+        officeLng: lng,
+        allowedRadiusMeters: attendanceConfig.allowedRadiusMeters || 100,
+      });
+      setGpsDistance(0);
+      setGpsStatus("matched");
+      alert(`Office GPS updated successfully!\nLatitude: ${lat}\nLongitude: ${lng}\nAccuracy: ±${acc}m\nAllowed Radius: 100m`);
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      onSaveSuccess,
+      (err) => {
+        if (err.code !== 1) {
+          navigator.geolocation.getCurrentPosition(
+            onSaveSuccess,
+            (err2) => {
+              setIsSettingOfficeGps(false);
+              alert(`Failed to detect GPS: ${err2.message}`);
+            },
+            { enableHighAccuracy: false, timeout: 10000 }
+          );
+        } else {
+          setIsSettingOfficeGps(false);
+          alert("Location permission denied. Please allow location access in your browser address bar.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
 
   useEffect(() => {
     const updateClock = () => {
@@ -127,23 +173,39 @@ export default function MemberAttendancePage() {
       return;
     }
     setGpsStatus("checking");
+
+    const onPosSuccess = (pos: GeolocationPosition) => {
+      const dist = getDistanceInMeters(
+        pos.coords.latitude,
+        pos.coords.longitude,
+        attendanceConfig.officeLat!,
+        attendanceConfig.officeLng!
+      );
+      setGpsDistance(dist);
+      const maxRadius = attendanceConfig.allowedRadiusMeters || 100;
+      if (dist <= maxRadius) {
+        setGpsStatus("matched");
+      } else {
+        setGpsStatus("outside");
+      }
+    };
+
+    // Stage 1: Try high accuracy (satellite / fine)
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const dist = getDistanceInMeters(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          attendanceConfig.officeLat!,
-          attendanceConfig.officeLng!
-        );
-        setGpsDistance(dist);
-        if (dist <= (attendanceConfig.allowedRadiusMeters || 150)) {
-          setGpsStatus("matched");
+      onPosSuccess,
+      (err) => {
+        // Stage 2: Fallback to standard network accuracy if high accuracy timed out or unavailable
+        if (err.code !== 1) {
+          navigator.geolocation.getCurrentPosition(
+            onPosSuccess,
+            () => setGpsStatus("error"),
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+          );
         } else {
-          setGpsStatus("outside");
+          setGpsStatus("error");
         }
       },
-      () => setGpsStatus("error"),
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );
   };
 
@@ -260,6 +322,12 @@ export default function MemberAttendancePage() {
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${
                 isGpsMatched
                   ? "bg-emerald-100/80 text-emerald-800"
+                  : gpsStatus === "checking"
+                  ? "bg-blue-100 text-blue-800"
+                  : gpsStatus === "outside"
+                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                  : gpsStatus === "error"
+                  ? "bg-red-100 text-red-800 border border-red-300"
                   : "bg-gray-200/70 text-gray-600"
               }`}
             >
@@ -268,6 +336,10 @@ export default function MemberAttendancePage() {
                 ? `Office GPS Verified (${gpsDistance ?? 0}m)`
                 : gpsStatus === "checking"
                 ? "Checking GPS..."
+                : gpsStatus === "outside"
+                ? `GPS Outside (${gpsDistance ? `${gpsDistance}m away` : "too far"})`
+                : gpsStatus === "error"
+                ? "GPS / Location Blocked"
                 : "GPS Standby"}
             </span>
 
@@ -283,9 +355,21 @@ export default function MemberAttendancePage() {
             {!isWifiMatched && !isGpsMatched && (
               <button
                 onClick={handleVerifyGps}
-                className="bg-white hover:bg-gray-50 text-blue-600 border border-blue-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors cursor-pointer shadow-sm"
+                disabled={gpsStatus === "checking"}
+                className="bg-white hover:bg-gray-50 text-blue-600 border border-blue-200 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors cursor-pointer shadow-sm disabled:opacity-50"
               >
-                <Navigation size={12} /> Check GPS
+                <Navigation size={12} className={gpsStatus === "checking" ? "animate-spin" : ""} />
+                {gpsStatus === "checking" ? "Checking..." : "Verify GPS"}
+              </button>
+            )}
+            {sessionUser?.role === "admin" && (
+              <button
+                onClick={handleSaveCurrentAsOfficeGps}
+                disabled={isSettingOfficeGps}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                title="Admin: Save your current device location as the official Office GPS coordinates"
+              >
+                <MapPin size={12} /> {isSettingOfficeGps ? "Saving..." : "Set Current GPS as Office"}
               </button>
             )}
           </div>
@@ -345,9 +429,32 @@ export default function MemberAttendancePage() {
         {/* Single Clean Action Button */}
         <div>
           {!canCheckInOrOut ? (
-            <div className="w-full py-3.5 bg-red-50 border border-red-200 text-red-700 font-bold text-xs rounded-2xl flex items-center justify-center gap-2">
-              <XCircle size={16} />
-              Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In/Out
+            <div className="space-y-2">
+              <div className="w-full py-3.5 bg-red-50 border border-red-200 text-red-700 font-bold text-xs rounded-2xl flex flex-col items-center justify-center gap-1.5 text-center px-4">
+                <div className="flex items-center gap-1.5 font-extrabold text-sm text-red-800">
+                  <XCircle size={17} className="shrink-0 text-red-600" />
+                  <span>Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In/Out</span>
+                </div>
+                {gpsStatus === "outside" && gpsDistance !== null && (
+                  <p className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                    Device GPS is <strong>{gpsDistance}m</strong> away from office (Allowed radius: {attendanceConfig.allowedRadiusMeters || 100}m). {sessionUser?.role === "admin" ? "Admin can click 'Set Current GPS as Office' above if you are in the office." : "You must be within 100 meters of the office to check in."}
+                  </p>
+                )}
+                {gpsStatus === "error" && (
+                  <p className="text-[11px] font-semibold text-red-800 bg-red-100/80 px-2.5 py-1 rounded-lg">
+                    Location access was denied or unavailable. Please click the padlock / site settings icon in your browser address bar and choose &quot;Allow Location&quot;.
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleVerifyGps}
+                disabled={gpsStatus === "checking"}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Navigation size={14} className={gpsStatus === "checking" ? "animate-spin" : ""} />
+                {gpsStatus === "checking" ? "Detecting Device GPS..." : "Re-Check Device GPS Location"}
+              </button>
             </div>
           ) : !todayRecord ? (
             <button
