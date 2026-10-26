@@ -39,6 +39,7 @@ export default function MemberAttendancePage() {
     attendanceRecords,
     currentDeviceId,
     currentNetworkIp,
+    isCloudSynced,
     sessionUser,
     updateAttendanceConfig,
     requestDeviceAuthorization,
@@ -55,8 +56,39 @@ export default function MemberAttendancePage() {
 
   const [gpsStatus, setGpsStatus] = useState<"idle" | "checking" | "matched" | "outside" | "error">("idle");
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
+  const [liveDeviceLat, setLiveDeviceLat] = useState<number | null>(null);
+  const [liveDeviceLng, setLiveDeviceLng] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSettingOfficeGps, setIsSettingOfficeGps] = useState(false);
+
+  const handleSetLiveGpsAsOffice = async () => {
+    if (liveDeviceLat === null || liveDeviceLng === null) {
+      handleSaveCurrentAsOfficeGps();
+      return;
+    }
+    setIsSettingOfficeGps(true);
+    try {
+      updateAttendanceConfig({
+        officeLat: liveDeviceLat,
+        officeLng: liveDeviceLng,
+        allowedRadiusMeters: 100,
+      });
+
+      await fetch("/api/attendance/set-office-gps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ officeLat: liveDeviceLat, officeLng: liveDeviceLng, allowedRadiusMeters: 100 }),
+      });
+
+      setGpsDistance(0);
+      setGpsStatus("matched");
+      alert(`Office GPS updated successfully!\nLatitude: ${liveDeviceLat}\nLongitude: ${liveDeviceLng}\nAllowed Radius: 100m`);
+    } catch (e: any) {
+      alert(`Error updating office location: ${e.message}`);
+    } finally {
+      setIsSettingOfficeGps(false);
+    }
+  };
 
   const handleSaveCurrentAsOfficeGps = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
@@ -175,9 +207,13 @@ export default function MemberAttendancePage() {
     setGpsStatus("checking");
 
     const onPosSuccess = (pos: GeolocationPosition) => {
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
+      setLiveDeviceLat(lat);
+      setLiveDeviceLng(lng);
       const dist = getDistanceInMeters(
-        pos.coords.latitude,
-        pos.coords.longitude,
+        lat,
+        lng,
         attendanceConfig.officeLat!,
         attendanceConfig.officeLng!
       );
@@ -216,10 +252,11 @@ export default function MemberAttendancePage() {
   }, [attendanceConfig.officeLat, attendanceConfig.officeLng]);
 
   // Auto Check-In on 1st connection of the day
-  // STRICT GUARD: Only auto-check-in if laptop is approved AND (wifi is matched OR gps is matched)!
+  // STRICT GUARD: Must wait for isCloudSynced, and only check in if no record exists for today!
   useEffect(() => {
     const isStrictPresenceOk = isWifiMatched || isGpsMatched || attendanceConfig.requireWifiOrGps === false;
     if (
+      isCloudSynced &&
       todayStr &&
       attendanceConfig.autoCheckInOnOpen !== false &&
       canCheckInOrOut &&
@@ -229,6 +266,7 @@ export default function MemberAttendancePage() {
       checkInMember(activeMemberName, getVerificationLabel());
     }
   }, [
+    isCloudSynced,
     todayStr,
     attendanceConfig.autoCheckInOnOpen,
     attendanceConfig.requireWifiOrGps,
@@ -364,10 +402,10 @@ export default function MemberAttendancePage() {
             )}
             {sessionUser?.role === "admin" && (
               <button
-                onClick={handleSaveCurrentAsOfficeGps}
+                onClick={handleSetLiveGpsAsOffice}
                 disabled={isSettingOfficeGps}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors cursor-pointer shadow-sm disabled:opacity-50"
-                title="Admin: Save your current device location as the official Office GPS coordinates"
+                title="Admin only: Save your current device location as the official Office GPS coordinates"
               >
                 <MapPin size={12} /> {isSettingOfficeGps ? "Saving..." : "Set Current GPS as Office"}
               </button>
@@ -436,9 +474,22 @@ export default function MemberAttendancePage() {
                   <span>Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In/Out</span>
                 </div>
                 {gpsStatus === "outside" && gpsDistance !== null && (
-                  <p className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">
-                    Device GPS is <strong>{gpsDistance}m</strong> away from office (Allowed radius: {attendanceConfig.allowedRadiusMeters || 100}m). {sessionUser?.role === "admin" ? "Admin can click 'Set Current GPS as Office' above if you are in the office." : "You must be within 100 meters of the office to check in."}
-                  </p>
+                  <div className="space-y-2 w-full pt-1">
+                    <p className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                      Device GPS is <strong>{gpsDistance}m</strong> away from office (Allowed radius: {attendanceConfig.allowedRadiusMeters || 100}m). You must be within 100 meters of the office to check in.
+                    </p>
+                    {sessionUser?.role === "admin" && (
+                      <button
+                        type="button"
+                        onClick={handleSetLiveGpsAsOffice}
+                        disabled={isSettingOfficeGps}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <MapPin size={14} />
+                        {isSettingOfficeGps ? "Saving Location to Office..." : "📍 Admin: Set Current Location as Office GPS"}
+                      </button>
+                    )}
+                  </div>
                 )}
                 {gpsStatus === "error" && (
                   <p className="text-[11px] font-semibold text-red-800 bg-red-100/80 px-2.5 py-1 rounded-lg">

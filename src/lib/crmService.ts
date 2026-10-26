@@ -164,22 +164,52 @@ export async function fetchAttendanceRecordsDb(): Promise<AttendanceRecord[] | n
 }
 
 export async function upsertAttendanceRecordDb(rec: AttendanceRecord) {
-  const { error } = await supabase.from("attendance_records").upsert({
-    id: rec.id,
-    member: rec.member,
-    date: rec.date,
-    check_in_time: rec.checkInTime,
-    check_in_timestamp: rec.checkInTimestamp,
-    check_out_time: rec.checkOutTime || null,
-    check_out_timestamp: rec.checkOutTimestamp || null,
-    working_minutes: rec.workingMinutes || null,
-    status: rec.status,
-    verified_via: rec.verifiedVia,
-    device_id: rec.deviceId,
-    late_reason: rec.lateReason || null,
-    admin_note: rec.adminNote || null,
-  });
-  if (error) console.error("upsertAttendanceRecordDb error:", error);
+  try {
+    // Lock & preserve 1st connection check-in: if a record already exists, never overwrite morning check-in time
+    const { data: existing } = await supabase
+      .from("attendance_records")
+      .select("check_in_time, check_in_timestamp, status, verified_via")
+      .eq("id", rec.id)
+      .maybeSingle();
+
+    if (existing && existing.check_in_time) {
+      // Record already exists for today! Keep original checkInTime and status locked!
+      const isCheckingOut = Boolean(rec.checkOutTime);
+      const { error } = await supabase
+        .from("attendance_records")
+        .update({
+          check_out_time: rec.checkOutTime || null,
+          check_out_timestamp: rec.checkOutTimestamp || null,
+          working_minutes: rec.workingMinutes || null,
+          status: isCheckingOut ? "Checked Out" : existing.status,
+          late_reason: rec.lateReason || null,
+          admin_note: rec.adminNote || null,
+        })
+        .eq("id", rec.id);
+      if (error) console.error("upsertAttendanceRecordDb update error:", error);
+      return;
+    }
+
+    // Brand new check-in record
+    const { error } = await supabase.from("attendance_records").upsert({
+      id: rec.id,
+      member: rec.member,
+      date: rec.date,
+      check_in_time: rec.checkInTime,
+      check_in_timestamp: rec.checkInTimestamp,
+      check_out_time: rec.checkOutTime || null,
+      check_out_timestamp: rec.checkOutTimestamp || null,
+      working_minutes: rec.workingMinutes || null,
+      status: rec.status,
+      verified_via: rec.verifiedVia,
+      device_id: rec.deviceId,
+      late_reason: rec.lateReason || null,
+      admin_note: rec.adminNote || null,
+    });
+    if (error) console.error("upsertAttendanceRecordDb error:", error);
+  } catch (err) {
+    console.error("upsertAttendanceRecordDb unexpected error:", err);
+  }
 }
 
 export async function deleteAttendanceRecordDb(id: string) {

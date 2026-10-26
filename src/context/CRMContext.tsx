@@ -261,6 +261,7 @@ interface CRMContextType {
   attendanceRecords: AttendanceRecord[];
   currentDeviceId: string;
   currentNetworkIp: string;
+  isCloudSynced: boolean;
   // HR Rules & Notices State
   hrNotices: HRNotice[];
   officeRules: OfficeRule[];
@@ -371,8 +372,8 @@ const INITIAL_ATTENDANCE_CONFIG: OfficeAttendanceConfig = {
   wifiName: "Panda WiFi",
   registeredWifiIp: "49.37.8.225, 49.37.8.*, 103.145.22.10",
   requireWifiOrGps: true,
-  officeLat: 22.5726,
-  officeLng: 88.3639,
+  officeLat: 22.463493,
+  officeLng: 88.382777,
   allowedRadiusMeters: 100,
   requireAuthorizedLaptop: false,
   autoCheckInOnOpen: true,
@@ -551,6 +552,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const [broadcastAlerts, setBroadcastAlerts] = useState<BroadcastAlert[]>([]);
 
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
   // Load persisted data and initialize device ID + IP
   useEffect(() => {
@@ -800,6 +802,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           if (dbAlerts && dbAlerts.length > 0) setBroadcastAlerts(dbAlerts);
         } catch (err) {
           console.warn("Supabase initial sync error:", err);
+        } finally {
+          setIsCloudSynced(true);
         }
       })();
     } catch (e) {
@@ -1294,11 +1298,28 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
     let created = false;
     setAttendanceRecords((prev) => {
-      // Prevent duplicate check-in on the same day (1st connection of the day stays locked)
+      // 1. Prevent duplicate check-in on the same day (1st connection of the day stays locked)
       const alreadyToday = prev.some(
         (r) => r.id === deterministicId || (r.member.trim().toLowerCase() === memberName.trim().toLowerCase() && r.date === todayStr)
       );
       if (alreadyToday) return prev;
+
+      // 2. Double check localStorage before creating anything new
+      try {
+        const storedRaw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.ATTENDANCE_RECORDS) : null;
+        if (storedRaw) {
+          const storedRecs: AttendanceRecord[] = JSON.parse(storedRaw);
+          const inStorage = storedRecs.find(
+            (r) => r.id === deterministicId || (r.member.trim().toLowerCase() === memberName.trim().toLowerCase() && r.date === todayStr)
+          );
+          if (inStorage && inStorage.checkInTime) {
+            return [inStorage, ...prev.filter((p) => p.id !== inStorage.id)];
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
       created = true;
       const newRecord: AttendanceRecord = {
         id: deterministicId,
@@ -1322,7 +1343,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   // Auto Check-In on 1st WiFi OR GPS + Laptop connection of the day
   useEffect(() => {
-    if (!isHydrated || !attendanceConfig.autoCheckInOnOpen) return;
+    if (!isHydrated || !isCloudSynced || !attendanceConfig.autoCheckInOnOpen) return;
 
     // CRITICAL: Only logged-in members (role === "member") can be checked in!
     // Never auto check-in Admin, and never fall back to "Rahim" when admin is logged in!
@@ -1833,7 +1854,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       sessionUser, logout,
       leaveTypes, leaveRequests,
       attendanceConfig, authorizedDevices, attendanceRecords,
-      currentDeviceId, currentNetworkIp,
+      currentDeviceId, currentNetworkIp, isCloudSynced,
       hrNotices, officeRules,
       bankDetails, salaryPayments,
       dailyReports, submitDailyReport, deleteDailyReport,
