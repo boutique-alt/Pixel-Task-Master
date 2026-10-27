@@ -34,6 +34,51 @@ export default function AdminCheckInListener() {
         Notification.requestPermission().catch(() => {});
       }
     }
+
+    // Auto-unlock browser audio autoplay on first click or keypress
+    const unlockAudio = () => {
+      try {
+        const audio = new Audio("/sounds/notification.mp3");
+        audio.volume = 0.01;
+        audio.play().then(() => audio.pause()).catch(() => {});
+      } catch {}
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+
+    // Test Sound & Alert Event Listener
+    const handleTestSoundEvent = () => {
+      playAlertSound({ volume: 1.0, loop: false });
+      const testRec: AttendanceRecord = {
+        id: "test_" + Date.now(),
+        member: "Swagata Banerjee (Test Alert)",
+        date: new Date().toISOString().split("T")[0],
+        checkInTime: "09:58 AM",
+        checkInTimestamp: Date.now(),
+        status: "On Time",
+        verifiedVia: "Office GPS (Sound Test)",
+        deviceId: "OFFICE-LAPTOP-TEST",
+      };
+      setLatestCheckIn(testRec);
+
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification("🔔 Notification Music Test", {
+            body: "Swagata Banerjee has checked in! (Office GPS)",
+            icon: "/icon-192.png",
+          });
+        } catch {}
+      }
+    };
+    window.addEventListener("trigger-admin-test-sound", handleTestSoundEvent);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("trigger-admin-test-sound", handleTestSoundEvent);
+    };
   }, [isAdminUser]);
 
   // Real-time check-in listener

@@ -25,7 +25,8 @@ import {
   AlertCircle,
   User,
   Sparkles,
-  ChevronDown
+  ChevronDown,
+  Volume2,
 } from "lucide-react";
 
 export default function AdminAttendancePage() {
@@ -163,37 +164,6 @@ export default function AdminAttendancePage() {
     setTimeout(() => setCopiedReportId(null), 2500);
   };
 
-  const handleSendTodayCheckInsToSirWhatsApp = () => {
-    const todayRecs = attendanceRecords.filter((r) => r.date === todayStr && Boolean(r.checkInTime));
-    if (todayRecs.length === 0) {
-      showToast("No check-in records found for today yet.");
-      return;
-    }
-
-    const lines = [
-      `📋 *Pixel Task Master - Today's Attendance Report*`,
-      `📅 *Date:* ${todayStr}`,
-      `👥 *Total Present:* ${todayRecs.length} Members`,
-      ``,
-    ];
-
-    todayRecs.forEach((r, idx) => {
-      lines.push(`${idx + 1}. *${r.member}* — ${r.checkInTime} [${r.status}]`);
-      lines.push(`   📍 Verified: ${r.verifiedVia || "Office"}`);
-      if (r.checkOutTime) {
-        lines.push(`   🚪 Checked Out: ${r.checkOutTime}`);
-      }
-      lines.push(``);
-    });
-
-    lines.push(`━━━━━━━━━━━━━━━━━━━━`);
-    lines.push(`✅ Automatically verified via Panda WiFi & Office GPS.`);
-
-    const text = lines.join("\n");
-    const url = `https://wa.me/918240017974?text=${encodeURIComponent(text)}`;
-    window.open(url, "_blank");
-  };
-
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-10">
       {/* Top Header + 3 Tabs */}
@@ -249,13 +219,14 @@ export default function AdminAttendancePage() {
 
           <button
             type="button"
-            onClick={handleSendTodayCheckInsToSirWhatsApp}
-            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black flex items-center gap-2 transition-all shadow-sm cursor-pointer"
-            title="Send Today's Check-In Summary to Sir (+91 8240017974)"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("trigger-admin-test-sound"));
+            }}
+            className="px-3.5 py-2.5 bg-blue-50 hover:bg-blue-100 text-[#1677FF] border border-blue-200 rounded-2xl text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+            title="Click to test the check-in music and notification card on your screen"
           >
-            <MessageCircle size={15} />
-            <span>Send Today&apos;s Check-ins to Sir</span>
-            <ExternalLink size={12} className="opacity-80" />
+            <Volume2 size={15} className="text-[#1677FF]" />
+            <span>Test Sound &amp; Alert</span>
           </button>
         </div>
       </div>
