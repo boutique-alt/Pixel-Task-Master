@@ -16,6 +16,7 @@ import {
   Calendar,
   Navigation,
   MessageCircle,
+  AlertTriangle,
 } from "lucide-react";
 import MemberSendReportModal from "@/components/MemberSendReportModal";
 
@@ -60,6 +61,12 @@ export default function MemberAttendancePage() {
   const [liveDeviceLng, setLiveDeviceLng] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isSettingOfficeGps, setIsSettingOfficeGps] = useState(false);
+  const [showCheckOutConfirm, setShowCheckOutConfirm] = useState(false);
+
+  const handleConfirmCheckOut = () => {
+    checkOutMember(activeMemberName);
+    setShowCheckOutConfirm(false);
+  };
 
   const handleSetLiveGpsAsOffice = async () => {
     if (liveDeviceLat === null || liveDeviceLng === null) {
@@ -518,7 +525,8 @@ export default function MemberAttendancePage() {
           ) : !todayRecord.checkOutTime ? (
             <div className="space-y-3">
               <button
-                onClick={() => checkOutMember(activeMemberName)}
+                type="button"
+                onClick={() => setShowCheckOutConfirm(true)}
                 className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
                 <LogOut size={18} />
@@ -659,6 +667,41 @@ export default function MemberAttendancePage() {
         onClose={() => setIsReportModalOpen(false)}
         memberName={activeMemberName}
       />
+
+      {/* Safety Confirmation Modal for Check-Out */}
+      {showCheckOutConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white max-w-sm w-full rounded-3xl p-6 text-center space-y-4 shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-2xl mx-auto flex items-center justify-center shadow-inner">
+              <LogOut size={28} />
+            </div>
+
+            <div>
+              <h3 className="text-base font-black text-gray-900">Confirm Shift Check-Out?</h3>
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                Are you sure you want to check out right now? Your shift will end and today&apos;s working hours ({liveProgress.text}) will be submitted.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCheckOutConfirm(false)}
+                className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                No, Keep Working
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCheckOut}
+                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                Yes, Check Out Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
