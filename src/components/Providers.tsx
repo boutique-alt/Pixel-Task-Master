@@ -2,6 +2,7 @@
 
 import { CRMProvider } from "@/context/CRMContext";
 import GlobalAlertListener from "./GlobalAlertListener";
+import AdminCheckInListener from "./AdminCheckInListener";
 import { ReactNode } from "react";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -9,6 +10,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <CRMProvider>
       {children}
       <GlobalAlertListener />
+      <AdminCheckInListener />
     </CRMProvider>
   );
 }

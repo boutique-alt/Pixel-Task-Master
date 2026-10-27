@@ -309,6 +309,7 @@ interface CRMContextType {
   checkOutMember: (memberName: string) => void;
   adminUpdateAttendance: (id: string, updated: Partial<AttendanceRecord>) => void;
   deleteAttendanceRecord: (id: string) => void;
+  setAttendanceRecords: React.Dispatch<React.SetStateAction<AttendanceRecord[]>>;
   // HR Notices & Office Rules CRUD (Admin)
   addHRNotice: (notice: Omit<HRNotice, "id">) => void;
   updateHRNotice: (id: string, updated: Partial<HRNotice>) => void;
@@ -1866,7 +1867,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       addLeaveType, updateLeaveType, deleteLeaveType,
       applyLeave, updateLeaveRequestStatus, deleteLeaveRequest,
       updateAttendanceConfig, requestDeviceAuthorization, updateDeviceStatus, deleteAuthorizedDevice,
-      checkInMember, checkOutMember, adminUpdateAttendance, deleteAttendanceRecord,
+      checkInMember, checkOutMember, adminUpdateAttendance, deleteAttendanceRecord, setAttendanceRecords,
       addHRNotice, updateHRNotice, deleteHRNotice,
       addOfficeRule, updateOfficeRule, deleteOfficeRule,
       saveMemberBankDetail, updateBankDetailStatus, adminUpdateBankDetail, deleteBankDetail,

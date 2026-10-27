@@ -163,6 +163,37 @@ export default function AdminAttendancePage() {
     setTimeout(() => setCopiedReportId(null), 2500);
   };
 
+  const handleSendTodayCheckInsToSirWhatsApp = () => {
+    const todayRecs = attendanceRecords.filter((r) => r.date === todayStr && Boolean(r.checkInTime));
+    if (todayRecs.length === 0) {
+      showToast("No check-in records found for today yet.");
+      return;
+    }
+
+    const lines = [
+      `📋 *Pixel Task Master - Today's Attendance Report*`,
+      `📅 *Date:* ${todayStr}`,
+      `👥 *Total Present:* ${todayRecs.length} Members`,
+      ``,
+    ];
+
+    todayRecs.forEach((r, idx) => {
+      lines.push(`${idx + 1}. *${r.member}* — ${r.checkInTime} [${r.status}]`);
+      lines.push(`   📍 Verified: ${r.verifiedVia || "Office"}`);
+      if (r.checkOutTime) {
+        lines.push(`   🚪 Checked Out: ${r.checkOutTime}`);
+      }
+      lines.push(``);
+    });
+
+    lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+    lines.push(`✅ Automatically verified via Panda WiFi & Office GPS.`);
+
+    const text = lines.join("\n");
+    const url = `https://wa.me/918240017974?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-10">
       {/* Top Header + 3 Tabs */}
@@ -174,44 +205,57 @@ export default function AdminAttendancePage() {
           </p>
         </div>
 
-        {/* 3 Tab Switcher */}
-        <div className="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-2xl self-start sm:self-auto flex-wrap">
+        {/* Tabs & WhatsApp Summary Action */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-2xl self-start sm:self-auto flex-wrap">
+            <button
+              onClick={() => setActiveTab("reports")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "reports" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <FileText size={14} />
+              <span>Daily Reports ({todayReports.length}/{members.length})</span>
+              {pendingMembersToday.length > 0 && (
+                <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                  {pendingMembersToday.length} pending
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("logs")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "logs" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <Calendar size={14} />
+              <span>Attendance Log ({attendanceRecords.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === "settings" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <Settings size={14} />
+              <span>WiFi, GPS &amp; Laptops</span>
+              {pendingLaptopsCount > 0 && (
+                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full">
+                  {pendingLaptopsCount}
+                </span>
+              )}
+            </button>
+          </div>
+
           <button
-            onClick={() => setActiveTab("reports")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === "reports" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
-            }`}
+            type="button"
+            onClick={handleSendTodayCheckInsToSirWhatsApp}
+            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+            title="Send Today's Check-In Summary to Sir (+91 8240017974)"
           >
-            <FileText size={14} />
-            <span>Daily Reports ({todayReports.length}/{members.length})</span>
-            {pendingMembersToday.length > 0 && (
-              <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                {pendingMembersToday.length} pending
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("logs")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === "logs" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <Calendar size={14} />
-            <span>Attendance Log ({attendanceRecords.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("settings")}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === "settings" ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <Settings size={14} />
-            <span>WiFi, GPS &amp; Laptops</span>
-            {pendingLaptopsCount > 0 && (
-              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full">
-                {pendingLaptopsCount}
-              </span>
-            )}
+            <MessageCircle size={15} />
+            <span>Send Today&apos;s Check-ins to Sir</span>
+            <ExternalLink size={12} className="opacity-80" />
           </button>
         </div>
       </div>
