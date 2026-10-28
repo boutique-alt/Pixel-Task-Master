@@ -132,10 +132,11 @@ export default function GlobalAlertListener() {
     }
   }, [broadcastAlerts, activeName, activeAlert]);
 
-  // 6:00 PM Daily Reminder for Admin: Remind Pixelians to update daily tasks
+  // 6:00 PM Daily Reminder for Coordinator (and Admin): Remind Pixelians to update daily tasks
   useEffect(() => {
-    const isAdmin = sessionUser?.role === "admin" || !sessionUser; // default or admin logged in
-    if (!isAdmin) return;
+    // Target Coordinator and Admin so coordinator directly gets notified to instruct members
+    const isTargetUser = sessionUser?.role === "coordinator" || sessionUser?.role === "admin" || !sessionUser;
+    if (!isTargetUser) return;
 
     const checkDaily6PmReminder = () => {
       const now = new Date();
