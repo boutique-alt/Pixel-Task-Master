@@ -64,8 +64,9 @@ export default function MemberDashboard() {
   const inProgressTasks = dateFilteredTasks.filter(t => t.status === "In Progress").length;
   const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
-  const strictDueToday = tasks.filter(t => t.status === "Pending" && today && t.endDate <= today);
-  const dueTodayTasks = strictDueToday.length > 0 ? strictDueToday : tasks.filter(t => t.status === "Pending");
+  // Strictly tasks that are due TODAY (end_date === today) or overdue from past (end_date < today)
+  const strictDueToday = tasks.filter(t => t.status === "Pending" && today && t.endDate <= today && (t.startDate ? t.startDate <= today : true));
+  const dueTodayTasks = strictDueToday;
 
   useEffect(() => {
     if (today && strictDueToday.some(t => !t.comments?.trim())) {
