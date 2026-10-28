@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useCRM, parseTimeToMs } from "@/context/CRMContext";
+import { useCRM, parseTimeToMs, getLocalDateString } from "@/context/CRMContext";
 import { isWifiIpMatched } from "@/lib/crmService";
 import {
   Wifi,
@@ -144,7 +144,7 @@ export default function MemberAttendancePage() {
     const updateClock = () => {
       const now = new Date();
       setNowTimestamp(now.getTime());
-      setTodayStr(now.toISOString().split("T")[0]);
+      setTodayStr(getLocalDateString(now));
       setLiveTimeStr(
         now.toLocaleTimeString("en-US", {
           hour: "2-digit",

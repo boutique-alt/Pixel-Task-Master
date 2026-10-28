@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useCRM, AttendanceRecord } from "@/context/CRMContext";
+import { useCRM, AttendanceRecord, getLocalDateString } from "@/context/CRMContext";
 import { fetchAttendanceRecordsDb } from "@/lib/crmService";
 import { supabase } from "@/lib/supabase";
 import { playAlertSound } from "@/lib/soundService";
@@ -54,7 +54,7 @@ export default function AdminCheckInListener() {
       const testRec: AttendanceRecord = {
         id: "test_" + Date.now(),
         member: "Swagata Banerjee (Test Alert)",
-        date: new Date().toISOString().split("T")[0],
+        date: getLocalDateString(),
         checkInTime: "09:58 AM",
         checkInTimestamp: Date.now(),
         status: "On Time",
@@ -85,7 +85,7 @@ export default function AdminCheckInListener() {
   useEffect(() => {
     if (!isAdminUser) return;
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString();
 
     const checkForNewCheckIns = async () => {
       try {

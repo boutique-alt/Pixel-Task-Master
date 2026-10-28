@@ -512,6 +512,13 @@ const STORAGE_KEYS = {
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
 
+export function getLocalDateString(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function parseTimeToMs(dateStr: string, timeStr?: string): number {
   if (!timeStr) return 0;
   const match = timeStr.trim().match(/(\d+)(?:[:\s](\d+))?(?:[:\s](\d+))?\s*(AM|PM)?/i);
@@ -525,7 +532,7 @@ export function parseTimeToMs(dateStr: string, timeStr?: string): number {
   if (ampm === "PM" && h < 12) h += 12;
   if (ampm === "AM" && h === 12) h = 0;
 
-  const [y, mon, d] = (dateStr || new Date().toISOString().split("T")[0]).split("-").map(Number);
+  const [y, mon, d] = (dateStr || getLocalDateString()).split("-").map(Number);
   return new Date(y, mon - 1, d, h, m, s).getTime();
 }
 
@@ -649,7 +656,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             deviceName: "Primary Office Laptop (Windows / Chrome)",
             assignedMember: "All (Office Laptop)",
             status: "Approved",
-            requestedAt: new Date().toISOString().split("T")[0],
+            requestedAt: getLocalDateString(),
           },
         ];
         setAuthorizedDevices(initialDevices);
@@ -1189,7 +1196,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       ...req,
       id: "lr_" + Math.random().toString(36).substr(2, 9),
       status: "Pending",
-      appliedAt: new Date().toISOString().split("T")[0],
+      appliedAt: getLocalDateString(),
     };
     setLeaveRequests((prev) => [newReq, ...prev]);
     upsertLeaveRequestDb(newReq);
@@ -1237,7 +1244,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       deviceName,
       assignedMember: memberName,
       status: "Pending",
-      requestedAt: new Date().toISOString().split("T")[0],
+      requestedAt: getLocalDateString(),
     };
     upsertAuthorizedDeviceDb(newDev);
     setAuthorizedDevices((prev) => {
@@ -1280,7 +1287,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const checkInMember = (memberName: string, verifiedVia: string, lateReason?: string) => {
     if (!memberName || memberName === "all" || memberName.toLowerCase() === "admin") return;
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = getLocalDateString(now);
 
     const timeString = now.toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -1352,7 +1359,14 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     const activeMember = sessionUser.name.trim();
     if (!activeMember || activeMember.toLowerCase() === "admin") return;
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    // CRITICAL GUARD: Only auto check-in during legitimate office hours (8:00 AM to 8:00 PM).
+    // If a laptop is left in the office overnight, it will NOT auto-checkin at 5:30 AM or midnight!
+    if (currentHour < 8 || currentHour >= 20) return;
+
+    const todayStr = getLocalDateString(now);
 
     const alreadyCheckedInToday = attendanceRecords.some(
       (r) => r.member.trim().toLowerCase() === activeMember.toLowerCase() && r.date === todayStr
@@ -1439,7 +1453,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   const checkOutMember = (memberName: string) => {
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = getLocalDateString(now);
     const timeString = now.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
@@ -1628,7 +1642,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   // --- BANK DETAILS CRUD (MEMBER & ADMIN) ---
   const saveMemberBankDetail = (data: Omit<MemberBankDetail, "id" | "status" | "updatedAt">) => {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString();
     let toSave: MemberBankDetail | null = null;
     setBankDetails((prev) => {
       const existing = prev.find(

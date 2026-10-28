@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useCRM, AttendanceRecord, DailyReport, parseTimeToMs } from "@/context/CRMContext";
+import { useCRM, AttendanceRecord, DailyReport, parseTimeToMs, getLocalDateString } from "@/context/CRMContext";
 import {
   Wifi,
   MapPin,
@@ -64,7 +64,7 @@ export default function AdminAttendancePage() {
 
   useEffect(() => {
     setCurrentTimeMs(Date.now());
-    setTodayStr(new Date().toISOString().split("T")[0]);
+    setTodayStr(getLocalDateString());
     const timer = setInterval(() => setCurrentTimeMs(Date.now()), 10000);
     return () => clearInterval(timer);
   }, []);
