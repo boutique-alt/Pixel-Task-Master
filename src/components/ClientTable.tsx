@@ -23,6 +23,7 @@ export type Client = {
 interface ClientTableProps {
   clients: Client[];
   isAdmin: boolean;
+  isCoordinator?: boolean;
   members?: string[];
   onStatusChange?: (id: string, status: "Pending" | "In Progress" | "Can't Do" | "Done") => void;
   onCommentChange?: (id: string, comment: string) => void;
@@ -31,8 +32,10 @@ interface ClientTableProps {
   onDelete?: (id: string) => void;
 }
 
-export default function ClientTable({ clients, isAdmin, members = [], onStatusChange, onCommentChange, onAssignChange, onEdit, onDelete }: ClientTableProps) {
+export default function ClientTable({ clients, isAdmin, isCoordinator, members = [], onStatusChange, onCommentChange, onAssignChange, onEdit, onDelete }: ClientTableProps) {
   const [today, setToday] = useState("");
+  const showAssignee = isAdmin || isCoordinator;
+  const showFinancials = isAdmin; // Hide financial figures from coordinator
 
   useEffect(() => {
     setToday(new Date().toISOString().split("T")[0]);
@@ -46,18 +49,18 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
             <th className="pb-4 pt-2 font-bold px-3">Client Name</th>
             <th className="pb-4 pt-2 font-bold px-2">Task Details</th>
             <th className="pb-4 pt-2 font-bold px-2 whitespace-nowrap">Assign Date</th>
-            {isAdmin && <th className="pb-4 pt-2 font-bold px-2">Assigned To</th>}
-            {isAdmin && <th className="pb-4 pt-2 font-bold px-2">Expected</th>}
-            {isAdmin && <th className="pb-4 pt-2 font-bold px-2">Received</th>}
+            {showAssignee && <th className="pb-4 pt-2 font-bold px-2">Assigned To</th>}
+            {showFinancials && <th className="pb-4 pt-2 font-bold px-2">Expected</th>}
+            {showFinancials && <th className="pb-4 pt-2 font-bold px-2">Received</th>}
             <th className="pb-4 pt-2 font-bold px-2">Status</th>
             <th className="pb-4 pt-2 font-bold px-2">Comments/Remarks</th>
-            {isAdmin && <th className="pb-4 pt-2 font-bold px-3 text-center">Actions</th>}
+            {(isAdmin || isCoordinator) && <th className="pb-4 pt-2 font-bold px-3 text-center">Actions</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E3EBF5]">
           {clients.length === 0 ? (
             <tr>
-              <td colSpan={isAdmin ? 9 : 5} className="py-12 text-center text-[#64748B] text-sm font-medium">
+              <td colSpan={showFinancials ? 9 : 7} className="py-12 text-center text-[#64748B] text-sm font-medium">
                 No tasks found matching the selected filters.
               </td>
             </tr>
@@ -115,8 +118,8 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
                     </div>
                   </td>
                   
-                  {/* Admin Only Fields */}
-                  {isAdmin && (
+                  {/* Assignee Field */}
+                  {showAssignee && (
                     <td className="py-4 px-2">
                       <select
                         value={c.member || ""}
@@ -130,12 +133,12 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
                       </select>
                     </td>
                   )}
-                  {isAdmin && (
+                  {showFinancials && (
                     <td className="py-4 px-2">
                       <p className="text-[13px] font-bold text-[#14233F]">₹{parseInt(c.expected || "0").toLocaleString("en-US")}</p>
                     </td>
                   )}
-                  {isAdmin && (
+                  {showFinancials && (
                     <td className="py-4 px-2">
                       <p className="text-[13px] font-bold text-[#08B981]">₹{parseInt(c.received || "0").toLocaleString("en-US")}</p>
                     </td>
@@ -143,7 +146,7 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
 
                   {/* Status Column */}
                   <td className="py-4 px-2">
-                    {isAdmin && !onStatusChange ? (
+                    {(isAdmin || isCoordinator) && !onStatusChange ? (
                       <span className={`px-2.5 py-1 text-[11px] uppercase tracking-wider rounded-full font-bold whitespace-nowrap ${
                         c.status === 'Done' ? 'bg-[#08B981]/10 text-[#08B981]' :
                         c.status === 'Can\'t Do' ? 'bg-red-100 text-red-700' :
@@ -158,7 +161,7 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
                           value={c.status}
                           onChange={(e) => {
                             const newStatus = e.target.value as Client["status"];
-                            if (!isAdmin && newStatus === "Pending" && !c.comments?.trim()) {
+                            if (!isAdmin && !isCoordinator && newStatus === "Pending" && !c.comments?.trim()) {
                               alert("⚠️ Action Blocked: You must add a comment explaining why this task is pending before changing its status.");
                               return;
                             }
@@ -198,7 +201,7 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
 
                   {/* Comments Field */}
                   <td className="py-4 px-2 w-[230px]">
-                    {isAdmin ? (
+                    {isAdmin || isCoordinator ? (
                       <div className={`flex items-start gap-2 text-[12px] p-2 rounded-lg w-full border ${
                         isDueTodayNoUpdate
                           ? "bg-[#FEF2F2] border-[#FEE2E2] text-[#DC2626]"
@@ -225,16 +228,18 @@ export default function ClientTable({ clients, isAdmin, members = [], onStatusCh
                     )}
                   </td>
 
-                  {/* Admin Actions */}
-                  {isAdmin && (
+                  {/* Actions (Admin & Coordinator) */}
+                  {(isAdmin || isCoordinator) && (
                     <td className="py-4 px-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => onEdit?.(c)} className="p-1.5 text-[#1677FF] hover:bg-[#1677FF]/10 rounded-md transition-colors" title="Edit Task">
                           <Edit size={16} />
                         </button>
-                        <button onClick={() => onDelete?.(c.id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="Delete Task">
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button onClick={() => onDelete?.(c.id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="Delete Task">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   )}

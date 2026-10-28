@@ -30,6 +30,7 @@ export async function fetchMembersDb(): Promise<Member[] | null> {
     email: d.email,
     phone: d.phone,
     role: d.role,
+    systemRole: d.system_role || d.systemRole || (d.role?.toLowerCase() === "coordinator" ? "coordinator" : "member"),
     status: d.status,
   }));
 }
@@ -41,9 +42,21 @@ export async function upsertMemberDb(member: Member) {
     email: member.email,
     phone: member.phone,
     role: member.role,
+    system_role: member.systemRole || (member.role?.toLowerCase() === "coordinator" ? "coordinator" : "member"),
     status: member.status || "Active",
   });
-  if (error) console.error("upsertMemberDb error:", error);
+  if (error) {
+    // If system_role column doesn't exist yet in PostgreSQL, retry without system_role so it never fails
+    const fallbackRes = await supabase.from("members").upsert({
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      phone: member.phone,
+      role: member.role,
+      status: member.status || "Active",
+    });
+    if (fallbackRes.error) console.error("upsertMemberDb error:", fallbackRes.error);
+  }
 }
 
 export async function deleteMemberDb(id: string) {

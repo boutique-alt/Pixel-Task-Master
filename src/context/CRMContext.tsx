@@ -61,6 +61,7 @@ export type Member = {
   email: string;
   phone?: string;
   role?: string;
+  systemRole?: "member" | "coordinator";
   status?: "Active" | "On Leave" | "Inactive";
 };
 

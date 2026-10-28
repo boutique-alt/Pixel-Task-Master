@@ -72,6 +72,10 @@ export default function LoginPage() {
         if (activeUser.role === "admin") {
           router.replace("/admin");
           return;
+        } else if (activeUser.role === "coordinator") {
+          if (activeUser.name) setCurrentMember(activeUser.name);
+          router.replace("/coordinator");
+          return;
         } else if (activeUser.role === "member") {
           if (activeUser.name) setCurrentMember(activeUser.name);
           router.replace("/member");
@@ -109,6 +113,9 @@ export default function LoginPage() {
       // Successful login
       if (result.user.role === "admin") {
         router.push("/admin");
+      } else if (result.user.role === "coordinator") {
+        setCurrentMember(result.user.name);
+        router.push("/coordinator");
       } else {
         // Set member name so the member portal immediately displays their profile and tasks
         setCurrentMember(result.user.name);

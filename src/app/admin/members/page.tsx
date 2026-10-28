@@ -111,12 +111,13 @@ export default function AdminMembersPage() {
       if (targetUser) {
         await adminResetUserPassword(targetUser.id, newPassword);
       } else {
+        const memRole = passwordModalMember.systemRole || (passwordModalMember.role?.toLowerCase() === "coordinator" ? "coordinator" : "member");
         const newUser: AppUser = {
           id: "usr_" + passwordModalMember.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
           name: passwordModalMember.name,
           phone: passwordModalMember.phone || "0000000000",
           password: newPassword.trim(),
-          role: "member",
+          role: memRole,
           status: "Active",
         };
         await upsertAppUser(newUser);
@@ -174,7 +175,8 @@ export default function AdminMembersPage() {
             <thead>
               <tr className="bg-[#F8FAFC] border-b border-[#E3EBF5] text-[#64748B] text-[10px] uppercase tracking-wider font-bold">
                 <th className="py-3.5 px-4">Member (Login Name)</th>
-                <th className="py-3.5 px-3">Role / Designation</th>
+                <th className="py-3.5 px-3">System Role</th>
+                <th className="py-3.5 px-3">Designation</th>
                 <th className="py-3.5 px-3">Login Phone</th>
                 <th className="py-3.5 px-3">Status</th>
                 <th className="py-3.5 px-3">Assigned Tasks</th>
@@ -191,12 +193,15 @@ export default function AdminMembersPage() {
                 const expectedTotal = empClients.reduce((sum, c) => sum + parseInt(c.expected || "0"), 0);
                 const receivedTotal = empClients.reduce((sum, c) => sum + parseInt(c.received || "0"), 0);
                 const doneCount = empClients.filter((c) => c.status === "Done").length;
+                const isCoord = emp.systemRole === "coordinator" || emp.role?.toLowerCase() === "coordinator";
 
                 return (
                   <tr key={emp.id} className="hover:bg-[#F4F7FC]/60 transition-colors">
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-[#10B981]/10 flex items-center justify-center text-[#10B981] font-extrabold shrink-0">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold shrink-0 ${
+                          isCoord ? "bg-[#8B5CF6]/15 text-[#8B5CF6]" : "bg-[#10B981]/10 text-[#10B981]"
+                        }`}>
                           {emp.name[0]}
                         </div>
                         <div>
@@ -204,6 +209,15 @@ export default function AdminMembersPage() {
                           <p className="text-[11px] text-[#64748B]">{emp.email}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="py-4 px-3">
+                      <span className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border ${
+                        isCoord 
+                          ? "bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/30" 
+                          : "bg-blue-50 text-[#1677FF] border-blue-200"
+                      }`}>
+                        {isCoord ? "Coordinator" : "Member"}
+                      </span>
                     </td>
                     <td className="py-4 px-3">
                       <span className="px-2.5 py-1 bg-[#F4F7FC] text-[#10254F] text-[11px] rounded-lg font-bold border border-[#E3EBF5]">
@@ -291,6 +305,7 @@ export default function AdminMembersPage() {
                 const memPhone = formData.get("phone") as string;
                 const memEmail = formData.get("email") as string;
                 const memRole = formData.get("role") as string;
+                const systemRole = (formData.get("systemRole") as "member" | "coordinator") || "member";
                 const memPass = (formData.get("password") as string) || "123";
 
                 addMember(
@@ -300,6 +315,7 @@ export default function AdminMembersPage() {
                     email: memEmail,
                     phone: memPhone,
                     role: memRole,
+                    systemRole: systemRole,
                     status: (formData.get("status") as "Active" | "On Leave" | "Inactive") || "Active",
                   },
                   "Admin"
@@ -312,7 +328,7 @@ export default function AdminMembersPage() {
                     name: memName,
                     phone: memPhone,
                     password: memPass,
-                    role: "member",
+                    role: systemRole,
                     status: "Active",
                   });
                 } catch (err) {
@@ -325,7 +341,20 @@ export default function AdminMembersPage() {
             >
               <div>
                 <label className="block text-[12px] font-bold text-[#10254F] mb-1">
-                  Login Name * (Member will type this to sign in)
+                  User Role / Access Type *
+                </label>
+                <select 
+                  name="systemRole" 
+                  defaultValue="member" 
+                  className="w-full px-3.5 py-2 text-[13px] font-bold border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#10B981] outline-none bg-blue-50/40 text-[#10254F]"
+                >
+                  <option value="member">Member (Can do assigned tasks, attendance, leave)</option>
+                  <option value="coordinator">Coordinator (Can assign tasks to members & monitor updates)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">
+                  Login Name * (User will type this to sign in)
                 </label>
                 <input required name="name" type="text" placeholder="e.g. Zahid Hasan" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#10B981] outline-none" />
               </div>
@@ -382,11 +411,12 @@ export default function AdminMembersPage() {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
                 const updatedName = formData.get("name") as string;
                 const updatedPhone = formData.get("phone") as string;
+                const updatedSystemRole = (formData.get("systemRole") as "member" | "coordinator") || "member";
                 const passInput = (formData.get("password") as string)?.trim();
                 const updatedPass = passInput || "";
                 const updatedStatus = (formData.get("status") as "Active" | "On Leave" | "Inactive") || "Active";
@@ -398,25 +428,38 @@ export default function AdminMembersPage() {
                     email: formData.get("email") as string,
                     phone: updatedPhone,
                     role: formData.get("role") as string,
+                    systemRole: updatedSystemRole,
                     status: updatedStatus,
                   },
                   "Admin"
                 );
 
                 const targetUserId = targetUser?.id || "usr_" + updatedName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-                upsertAppUser({
+                await upsertAppUser({
                   id: targetUserId,
                   name: updatedName,
                   phone: updatedPhone,
                   password: updatedPass || undefined,
-                  role: "member",
+                  role: updatedSystemRole,
                   status: updatedStatus,
                 });
 
+                // Clear any cached credentials/users
                 setEditingMember(null);
               }}
               className="p-6 space-y-4"
             >
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">User Role / Access Type *</label>
+                <select 
+                  name="systemRole" 
+                  defaultValue={editingMember.systemRole || (editingMember.role?.toLowerCase() === "coordinator" ? "coordinator" : "member")} 
+                  className="w-full px-3.5 py-2 text-[13px] font-bold border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#10B981] outline-none bg-blue-50/40 text-[#10254F]"
+                >
+                  <option value="member">Member (Can do assigned tasks, attendance, leave)</option>
+                  <option value="coordinator">Coordinator (Can assign tasks to members & monitor updates)</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-[12px] font-bold text-[#10254F] mb-1">Login Name *</label>
                 <input required name="name" defaultValue={editingMember.name} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#10B981] outline-none" />

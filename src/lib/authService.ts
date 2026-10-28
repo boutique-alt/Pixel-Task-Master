@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-export type UserRole = "admin" | "member";
+export type UserRole = "admin" | "member" | "coordinator";
 
 export type AppUser = {
   id: string;
@@ -558,12 +558,14 @@ export async function getAllUsers(): Promise<AppUser[]> {
       customPasswords[memberName.toLowerCase()] || 
       "123"; // Default password for any member added by Admin
 
+    const userRole: UserRole = m.systemRole === "coordinator" || m.role?.toLowerCase() === "coordinator" ? "coordinator" : "member";
+
     users.push({
       id: m.id || "usr_" + memberName.toLowerCase().replace(/[^a-z0-9]/g, "_"),
       name: memberName,
       phone: m.phone || "",
       password: savedPass,
-      role: "member",
+      role: userRole,
       status: m.status || "Active",
     });
   }
@@ -592,6 +594,7 @@ export async function getAllUsers(): Promise<AppUser[]> {
         if (existing) {
           if (readablePass) existing.password = readablePass;
           if (cu.phone) existing.phone = cu.phone;
+          if (cu.role) existing.role = cu.role;
         }
       }
     }
@@ -947,6 +950,28 @@ export function getSessionUser(): AppUser | null {
   try {
     const user = JSON.parse(raw);
     if (user && user.id && user.role) {
+      // Live sync: Check if role has been updated in members table in localStorage
+      try {
+        const memRaw = localStorage.getItem(STORAGE_KEY_MEMBERS);
+        if (memRaw) {
+          const membersList = JSON.parse(memRaw);
+          const found = membersList.find((m: any) => 
+            (m.id && m.id === user.id) || 
+            (m.name && user.name && m.name.toLowerCase() === user.name.toLowerCase()) ||
+            (m.phone && user.phone && m.phone === user.phone)
+          );
+          if (found) {
+            const currentSystemRole: UserRole = found.systemRole === "coordinator" || found.role?.toLowerCase() === "coordinator" ? "coordinator" : "member";
+            if (user.role !== "admin" && user.role !== currentSystemRole) {
+              user.role = currentSystemRole;
+              const refreshed = JSON.stringify(user);
+              localStorage.setItem(STORAGE_KEY_SESSION, refreshed);
+              setCookie(COOKIE_SESSION_NAME, refreshed, 365);
+            }
+          }
+        }
+      } catch {}
+
       // Refresh persistent cookie so session stays active for another year
       setCookie(COOKIE_SESSION_NAME, raw, 365);
       return user;

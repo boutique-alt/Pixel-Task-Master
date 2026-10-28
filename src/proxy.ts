@@ -23,7 +23,25 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Strictly Protect all /member routes
+  // 2. Strictly Protect all /coordinator routes
+  if (pathname.startsWith("/coordinator")) {
+    const sessionCookie = request.cookies.get("ptm_crm_session_user_v1");
+    if (!sessionCookie || !sessionCookie.value) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+
+    try {
+      const raw = decodeURIComponent(sessionCookie.value);
+      const user = JSON.parse(raw);
+      if (!user || (user.role !== "coordinator" && user.role !== "admin")) {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+    } catch {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
+  // 3. Strictly Protect all /member routes
   if (pathname.startsWith("/member")) {
     const sessionCookie = request.cookies.get("ptm_crm_session_user_v1");
     if (!sessionCookie || !sessionCookie.value) {
@@ -48,6 +66,8 @@ export const config = {
   matcher: [
     "/admin",
     "/admin/:path*",
+    "/coordinator",
+    "/coordinator/:path*",
     "/member",
     "/member/:path*",
   ],

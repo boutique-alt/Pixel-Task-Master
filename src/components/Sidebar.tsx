@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 interface SidebarProps {
-  role?: "admin" | "member";
+  role?: "admin" | "member" | "coordinator";
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -34,6 +34,8 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
       onClose();
     }
   };
+
+  const isCoordinator = role === "coordinator";
 
   return (
     <>
@@ -87,60 +89,84 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
 
         {/* Navigation Links */}
         <nav className="flex-1 px-4 space-y-1 mt-3 relative z-10 overflow-y-auto">
-          <Link 
-            href={`/${role}`} 
-            onClick={handleLinkClick}
-            className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname === `/${role}` ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-          >
-            <LayoutDashboard size={20} className={pathname === `/${role}` ? '' : 'opacity-70'} />
-            <span className="text-[14px]">Dashboard</span>
-          </Link>
-          <Link 
-            href={`/${role}/tasks`} 
-            onClick={handleLinkClick}
-            className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/tasks') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-          >
-            <ListTodo size={20} className={pathname.includes('/tasks') ? '' : 'opacity-70'} />
-            <span className="text-[14px]">Tasklist</span>
-          </Link>
-          <Link 
-            href={`/${role}/leave`} 
-            onClick={handleLinkClick}
-            className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/leave') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-          >
-            <Calendar size={20} className={pathname.includes('/leave') ? '' : 'opacity-70'} />
-            <span className="text-[14px]">Leave apply</span>
-          </Link>
-          <Link 
-            href={`/${role}/attendance`} 
-            onClick={handleLinkClick}
-            className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/attendance') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-          >
-            {role === "admin" ? (
-              <FileText size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
-            ) : (
-              <Clock size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
-            )}
-            <span className="text-[14px]">
-              {role === "admin" ? "Daily Reports & Attendance" : "Check in / Out & Report"}
-            </span>
-          </Link>
-          <Link 
-            href={`/${role}/hr-rules`} 
-            onClick={handleLinkClick}
-            className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/hr-rules') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-          >
-            <BookOpen size={20} className={pathname.includes('/hr-rules') ? '' : 'opacity-70'} />
-            <span className="text-[14px]">HR rules</span>
-          </Link>
-          <Link 
-            href={`/${role}/bank-details`} 
-            onClick={handleLinkClick}
-            className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/bank-details') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
-          >
-            <Landmark size={20} className={pathname.includes('/bank-details') ? '' : 'opacity-70'} />
-            <span className="text-[14px]">Bank details</span>
-          </Link>
+          {isCoordinator ? (
+            /* Coordinator: Task Assignment & Check in / Out */
+            <>
+              <Link 
+                href="/coordinator" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname === '/coordinator' ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <ListTodo size={20} className={pathname === '/coordinator' ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Task Assignment</span>
+              </Link>
+              <Link 
+                href="/coordinator/attendance" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/coordinator/attendance') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <Clock size={20} className={pathname.includes('/coordinator/attendance') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Check in / Out &amp; Report</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link 
+                href={`/${role}`} 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname === `/${role}` ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <LayoutDashboard size={20} className={pathname === `/${role}` ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Dashboard</span>
+              </Link>
+              <Link 
+                href={`/${role}/tasks`} 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/tasks') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <ListTodo size={20} className={pathname.includes('/tasks') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Tasklist</span>
+              </Link>
+              <Link 
+                href={`/${role}/leave`} 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/leave') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <Calendar size={20} className={pathname.includes('/leave') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Leave apply</span>
+              </Link>
+              <Link 
+                href={`/${role}/attendance`} 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/attendance') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                {role === "admin" ? (
+                  <FileText size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
+                ) : (
+                  <Clock size={20} className={pathname.includes('/attendance') ? '' : 'opacity-70'} />
+                )}
+                <span className="text-[14px]">
+                  {role === "admin" ? "Daily Reports & Attendance" : "Check in / Out & Report"}
+                </span>
+              </Link>
+              <Link 
+                href={`/${role}/hr-rules`} 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/hr-rules') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <BookOpen size={20} className={pathname.includes('/hr-rules') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">HR rules</span>
+              </Link>
+              <Link 
+                href={`/${role}/bank-details`} 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/bank-details') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <Landmark size={20} className={pathname.includes('/bank-details') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Bank details</span>
+              </Link>
+            </>
+          )}
           
           {/* Admin specific links */}
           {role === "admin" && (
@@ -191,11 +217,11 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
           >
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="w-9 h-9 rounded-full bg-[#1677FF] flex items-center justify-center text-white font-extrabold shrink-0 text-sm">
-                {role === "admin" ? "A" : (displayName ? displayName.charAt(0).toUpperCase() : "M")}
+                {role === "admin" ? "A" : role === "coordinator" ? "C" : (displayName ? displayName.charAt(0).toUpperCase() : "M")}
               </div>
               <div className="overflow-hidden">
                 <p className="text-[14px] font-extrabold text-white truncate leading-tight">
-                  {role === "admin" ? "Admin User" : displayName}
+                  {role === "admin" ? "Admin User" : role === "coordinator" ? `${displayName || "Coordinator"} (Coordinator)` : displayName}
                 </p>
                 <p className="text-[11px] text-[#A6C0E6] font-medium truncate mt-0.5">Click to Log out</p>
               </div>

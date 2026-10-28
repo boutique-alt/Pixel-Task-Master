@@ -9,7 +9,7 @@ import { Lock } from "lucide-react";
 
 interface PortalLayoutProps {
   children: React.ReactNode;
-  role: "admin" | "member";
+  role: "admin" | "member" | "coordinator";
   defaultTitle?: string;
   defaultSubtitle?: string;
 }
@@ -36,15 +36,22 @@ export default function PortalLayout({
         return;
       }
 
-      // 2. Member trying to access Admin portal
+      // 2. Member or Coordinator trying to access Admin portal
       if (role === "admin" && activeUser.role !== "admin") {
+        setAuthStatus("unauthorized");
+        window.location.replace(activeUser.role === "coordinator" ? "/coordinator" : "/member");
+        return;
+      }
+
+      // 3. Coordinator portal guard
+      if (role === "coordinator" && activeUser.role !== "coordinator" && activeUser.role !== "admin") {
         setAuthStatus("unauthorized");
         window.location.replace("/member");
         return;
       }
 
-      // 3. User with unknown role
-      if (role === "member" && activeUser.role !== "member" && activeUser.role !== "admin") {
+      // 4. Member portal guard
+      if (role === "member" && activeUser.role !== "member" && activeUser.role !== "admin" && activeUser.role !== "coordinator") {
         setAuthStatus("unauthorized");
         window.location.replace("/");
         return;
@@ -107,7 +114,7 @@ export default function PortalLayout({
           <div>
             <h2 className="text-base font-black text-gray-900">Access Restricted</h2>
             <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-              You must be logged in with authorized {role === "admin" ? "Admin" : "Member"} credentials to view this portal. Redirecting to login...
+              You must be logged in with authorized {role === "admin" ? "Admin" : role === "coordinator" ? "Coordinator" : "Member"} credentials to view this portal. Redirecting to login...
             </p>
           </div>
         </div>

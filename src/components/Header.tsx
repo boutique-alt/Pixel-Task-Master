@@ -23,6 +23,9 @@ const ROUTE_INFO: Record<string, { title: string; subtitle: string }> = {
   "/admin/users": { title: "Client Directory", subtitle: "Create and manage company client records" },
   "/admin/members": { title: "Members Management", subtitle: "Employee accounts, roles & credentials" },
   "/admin/settings": { title: "Settings", subtitle: "System preferences and configurations" },
+  "/coordinator": { title: "Task Assignment & Updates", subtitle: "Assign tasks to members and monitor progress" },
+  "/coordinator/tasks": { title: "Task Assignment & Updates", subtitle: "Assign tasks to members and monitor progress" },
+  "/coordinator/attendance": { title: "Check in / Out & Report", subtitle: "Daily punch in, punch out & working hours" },
   "/member/tasks": { title: "My Tasklist", subtitle: "View and update your assigned tasks" },
   "/member/leave": { title: "Apply for Leave", subtitle: "Submit and track your leave requests" },
   "/member/attendance": { title: "My Attendance", subtitle: "Daily punch in, punch out & working hours" },
@@ -79,8 +82,9 @@ export default function Header({
     displaySubtitle = "Manage your dashboard here";
   }
 
-  const currentRole = sessionUser?.role || (isMemberRoute ? "member" : "admin");
-  const displayName = sessionUser?.name || (isMemberRoute ? (currentMember || "Member") : "Admin");
+  const isCoordinatorRoute = pathname?.startsWith("/coordinator");
+  const currentRole = sessionUser?.role || (isCoordinatorRoute ? "coordinator" : isMemberRoute ? "member" : "admin");
+  const displayName = sessionUser?.name || (isCoordinatorRoute ? (currentMember || "Coordinator") : isMemberRoute ? (currentMember || "Member") : "Admin");
 
   return (
     <header className="flex justify-between items-center bg-transparent px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-7 pb-3 sm:pb-4 z-30 relative gap-3">
@@ -213,6 +217,10 @@ export default function Header({
                       {currentRole === "admin" ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1677FF]/10 text-[#1677FF]">
                           <ShieldCheck size={11} /> Admin
+                        </span>
+                      ) : currentRole === "coordinator" ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#8B5CF6]/10 text-[#8B5CF6]">
+                          <UserCheck size={11} /> Coordinator
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/10 text-[#10B981]">
