@@ -519,6 +519,13 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+export function isTaskOnDate(t: { startDate?: string; endDate?: string }, dateStr: string): boolean {
+  if (!dateStr) return true;
+  if (t.startDate === dateStr || t.endDate === dateStr) return true;
+  if (t.startDate && t.endDate && t.startDate <= dateStr && t.endDate >= dateStr) return true;
+  return false;
+}
+
 export function parseTimeToMs(dateStr: string, timeStr?: string): number {
   if (!timeStr) return 0;
   const match = timeStr.trim().match(/(\d+)(?:[:\s](\d+))?(?:[:\s](\d+))?\s*(AM|PM)?/i);

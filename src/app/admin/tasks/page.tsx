@@ -22,9 +22,9 @@ import {
   Mail,
   Building2
 } from "lucide-react";
-import StatCard from "@/components/StatCard";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS } from "@/context/CRMContext";
+import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
+import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 export default function AdminTasksPage() {
   const { 
@@ -50,6 +50,8 @@ export default function AdminTasksPage() {
 
   const [activeTab, setActiveTab] = useState<"tasks" | "clients" | "members">("tasks");
 
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [memberFilter, setMemberFilter] = useState("all");
   const [viewFilter, setViewFilter] = useState("all");
@@ -73,15 +75,29 @@ export default function AdminTasksPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
 
   useEffect(() => {
-    setToday(new Date().toISOString().split("T")[0]);
+    const todayStr = getLocalDateString();
+    setToday(todayStr);
+    setSelectedDate(todayStr);
   }, []);
 
   const memberNames = members.map((m) => m.name);
 
+  // Filter tasks based on active date filter (defaults to today)
+  const dateFilteredTasks = clients.filter((t) => {
+    if (dateFilterMode === "all") return true;
+    const targetDate = dateFilterMode === "today" ? today : selectedDate;
+    if (!targetDate) return true;
+    return isTaskOnDate(t, targetDate);
+  });
+
+  const todayTasksCount = today
+    ? clients.filter((t) => isTaskOnDate(t, today)).length
+    : 0;
+
   // Filter tasks based on selected member for stats
   const scopedTasks = memberFilter === "all" 
-    ? clients 
-    : clients.filter((c) => c.member === memberFilter);
+    ? dateFilteredTasks 
+    : dateFilteredTasks.filter((c) => c.member === memberFilter);
 
   const totalTasks = scopedTasks.length;
   const completedTasks = scopedTasks.filter((t) => t.status === "Done" || t.status === "Can't Do").length;
@@ -96,7 +112,7 @@ export default function AdminTasksPage() {
     : [];
 
   // Filtered tasks for the table
-  const displayedTasks = clients.filter((t) => {
+  const displayedTasks = dateFilteredTasks.filter((t) => {
     if (memberFilter !== "all" && t.member !== memberFilter) return false;
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (viewFilter === "daily" && today) {
@@ -173,148 +189,130 @@ export default function AdminTasksPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Page Title & Primary CRUD Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-2">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-[#1677FF]/10 text-[#1677FF] flex items-center justify-center shrink-0">
-            <ListTodo size={22} strokeWidth={2.5} />
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-[18px] sm:text-[20px] font-black text-[#10254F] tracking-tight">Admin Task, Client & Member Hub</h2>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span>
+              Live Sync Active
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-[24px] font-extrabold text-[#10254F] tracking-tight">Admin Task, Client & Member Hub</h2>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20">
-                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
-                Live Sync Active
-              </span>
-            </div>
-            <p className="text-[14px] text-[#64748B] font-medium">
-              Complete CRUD operations for Tasks, Clients, and Team Members—all synced with the Member Portal.
-            </p>
-          </div>
+          <p className="text-[12px] sm:text-[13px] text-[#64748B] font-medium mt-0.5">
+            Complete CRUD operations for Tasks, Clients, and Team Members—all synced with the Member Portal.
+          </p>
         </div>
 
-        {/* Quick CRUD Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Quick CRUD Buttons (Slim 1-Line - No Icons) */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
+            type="button"
             onClick={() => setIsAddMemberModalOpen(true)}
-            className="flex items-center gap-1.5 bg-white hover:bg-[#F0F5FF] text-[#10254F] border border-[#E3EAF5] px-4 py-2.5 rounded-xl text-[13px] font-bold transition-colors shadow-sm cursor-pointer"
+            className="bg-white hover:bg-[#F0F5FF] text-[#10254F] border border-[#E3EAF5] px-3.5 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-colors shadow-2xs cursor-pointer truncate"
           >
-            <Users size={16} className="text-[#10B981]" />
             + Add Member
           </button>
           <button
+            type="button"
             onClick={() => setIsAddDirectoryClientOpen(true)}
-            className="flex items-center gap-1.5 bg-white hover:bg-[#F0F5FF] text-[#10254F] border border-[#E3EAF5] px-4 py-2.5 rounded-xl text-[13px] font-bold transition-colors shadow-sm cursor-pointer"
+            className="bg-white hover:bg-[#F0F5FF] text-[#10254F] border border-[#E3EAF5] px-3.5 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-colors shadow-2xs cursor-pointer truncate"
           >
-            <Briefcase size={16} className="text-[#8B5CF6]" />
             + Add Client
           </button>
           <button
+            type="button"
             onClick={() => openAddTaskModal()}
-            className="flex items-center gap-1.5 bg-[#1677FF] hover:bg-[#0958D9] text-white px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-[0_4px_14px_rgba(22,119,255,0.3)] cursor-pointer"
+            className="bg-[#1677FF] hover:bg-[#0958D9] text-white px-4 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-all shadow-2xs cursor-pointer truncate"
           >
-            <Plus size={17} strokeWidth={2.5} />
             Assign New Task
           </button>
         </div>
       </div>
 
-      {/* Top Row: Team Progress Donut + 3 KPI Cards - 2 per row on mobile */}
-      <div className="grid grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_1fr] lg:grid-cols-2 gap-2.5 sm:gap-4 lg:gap-5">
-        {/* Team Task Progress Card */}
-        <div className="col-span-2 sm:col-span-2 lg:col-span-2 xl:col-span-1 bg-white p-4 sm:p-6 rounded-[18px] sm:rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-[#E3EAF5] flex flex-col h-full relative">
-          <div className="flex justify-between items-center mb-3 sm:mb-5">
-            <div className="flex items-center gap-2">
-              <div className="text-[#1677FF]">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
-              </div>
-              <h3 className="font-extrabold text-[#10254F] text-[14px] sm:text-[16px] truncate">
-                {memberFilter === "all" ? "Team Task Progress" : `${memberFilter}'s Progress`}
-              </h3>
-            </div>
-            <span className="text-[10px] sm:text-[11px] font-bold text-[#1677FF] bg-[#F0F5FF] border border-[#E0E7FF] rounded-lg px-2 sm:px-2.5 py-1 shrink-0">
-              {memberFilter === "all" ? "All Members" : memberFilter}
+      {/* Date Switcher Bar */}
+      <TaskDateFilterBar
+        dateFilterMode={dateFilterMode}
+        onModeChange={setDateFilterMode}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        todayDate={today}
+        todayTasksCount={todayTasksCount}
+        totalAllTasksCount={clients.length}
+      />
+
+      {/* Slim 1-Line Stats Grid: Team Task Progress, Total Tasks, Total Clients, Team Members */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* 1. Team Task Progress */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">
+              {memberFilter === "all" ? "Team Task Progress" : `${memberFilter}'s Progress`}
             </span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">{progressPercentage}%</span>
           </div>
-
-          <div className="flex-1 flex flex-row items-center justify-around sm:justify-between mb-3 sm:mb-4 mt-1 gap-2">
-            {/* Donut Chart */}
-            <div className="relative w-[120px] h-[120px] flex-shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                <path className="text-[#F3F6FB]" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <path className="text-[#1677FF]" strokeDasharray={`${progressPercentage}, 100`} strokeWidth="3.5" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[28px] font-extrabold text-[#10254F] leading-[1.1]">{progressPercentage}%</span>
-                <span className="text-[9px] font-bold text-[#64748B] mt-0.5 text-center leading-tight tracking-wider">
-                  {completedTasks}/{totalTasks} <br />Resolved
-                </span>
-              </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Resolved</span>
+              <span className="text-[#10254F]">{completedTasks}/{totalTasks}</span>
             </div>
-
-            {/* Legend */}
-            <div className="flex flex-col gap-3.5 ml-4 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shadow-sm"></div>
-                <div className="text-[12px] font-bold flex items-center gap-1.5">
-                  <span className="text-[#10254F] w-4 text-right">{completedTasks}</span>
-                  <span className="text-[#64748B] font-medium">Completed</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#1677FF] shadow-sm"></div>
-                <div className="text-[12px] font-bold flex items-center gap-1.5">
-                  <span className="text-[#10254F] w-4 text-right">{inProgressTasks}</span>
-                  <span className="text-[#64748B] font-medium">In Progress</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B00] shadow-sm"></div>
-                <div className="text-[12px] font-bold flex items-center gap-1.5">
-                  <span className="text-[#10254F] w-4 text-right">{pendingTasks}</span>
-                  <span className="text-[#64748B] font-medium">Pending</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-auto pt-3 flex items-center gap-3 border-t border-[#F3F6FB]">
-            <div className="text-[#1677FF]">
-              <RefreshCw size={16} />
-            </div>
-            <div>
-              <p className="text-[12px] font-extrabold text-[#10254F] leading-tight">Live Member Sync</p>
-              <p className="text-[11px] font-medium text-[#64748B]">Updates automatically when members act.</p>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#10B981] transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
             </div>
           </div>
         </div>
 
-        {/* Stat Cards */}
-        <StatCard
-          title="Total Tasks"
-          value={totalTasks.toString()}
-          subtitle={`${doneOnlyTasks} Done • ${pendingTasks} Pending`}
-          icon={<CheckSquare size={22} />}
-          theme="blue"
-          progress={progressPercentage}
-        />
-        <StatCard
-          title="Total Clients"
-          value={directoryClients.length.toString()}
-          subtitle={`${directoryClients.filter((c) => c.status !== "Inactive").length} active client profiles`}
-          icon={<Briefcase size={20} />}
-          theme="purple"
-          progress={100}
-        />
-        <StatCard
-          title="Team Members"
-          value={members.length.toString()}
-          subtitle={`${ignoredTasks.length} tasks awaiting member remark`}
-          icon={<Users size={20} />}
-          theme="green"
-          progress={100}
-        />
+        {/* 2. Total Tasks */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Total Tasks</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">{totalTasks}</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Progress</span>
+              <span className="text-[#10254F]">{progressPercentage}%</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#1677FF] transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Total Clients */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Total Clients</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">{directoryClients.length}</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Active</span>
+              <span className="text-[#10254F]">{directoryClients.filter((c) => c.status !== "Inactive").length}</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#8B5CF6]" style={{ width: "100%" }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Team Members */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Team Members</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">{members.length}</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Active Staff</span>
+              <span className="text-[#10254F]">{members.length}</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#0EA5E9]" style={{ width: "100%" }}></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Ignored / Missing Update Alert Banner */}
@@ -495,13 +493,6 @@ export default function AdminTasksPage() {
                   <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
                   <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
-
-                <button
-                  onClick={() => openAddTaskModal()}
-                  className="flex items-center gap-1.5 bg-[#1677FF] hover:bg-[#0958D9] text-white px-4 py-2.5 rounded-lg text-[13px] font-bold transition-colors cursor-pointer"
-                >
-                  <Plus size={15} /> Add Task
-                </button>
               </div>
             </div>
 
@@ -803,8 +794,8 @@ export default function AdminTasksPage() {
                     category: formData.get("category") as string,
                     taskType: (formData.get("taskType") as "Regular" | "One-Time") || "Regular",
                     taskDetails: formData.get("taskDetails") as string,
-                    startDate: (formData.get("startDate") as string) || today,
-                    endDate: (formData.get("endDate") as string) || today,
+                    startDate: (formData.get("startDate") as string) || selectedDate || today,
+                    endDate: (formData.get("endDate") as string) || selectedDate || today,
                     expected: (formData.get("expected") as string) || "0",
                     received: (formData.get("received") as string) || "0",
                     status: "Pending",
@@ -907,11 +898,11 @@ export default function AdminTasksPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Start Date *</label>
-                  <input required name="startDate" defaultValue={today} type="date" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
+                  <input required name="startDate" defaultValue={selectedDate || today} type="date" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
                 </div>
                 <div>
                   <label className="block text-[12px] font-bold text-[#10254F] mb-1">Deadline (End Date) *</label>
-                  <input required name="endDate" defaultValue={today} type="date" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
+                  <input required name="endDate" defaultValue={selectedDate || today} type="date" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
                 </div>
               </div>
 

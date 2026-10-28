@@ -21,8 +21,9 @@ import {
   TrendingUp,
   Info
 } from "lucide-react";
-import { useCRM, getLocalDateString } from "@/context/CRMContext";
+import { useCRM, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
 import { Client } from "@/components/ClientTable";
+import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 // Motivational quotes & cheers
 const CHEERS = [
@@ -46,7 +47,9 @@ const PRESET_REMARKS = [
 export default function MemberTasks() {
   const { clients, currentMember, updateStatus, updateComment } = useCRM();
   
-  const [viewFilter, setViewFilter] = useState<"all" | "today" | "pending" | "done">("all");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "done">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [today, setToday] = useState("");
   const [copiedEOD, setCopiedEOD] = useState(false);
@@ -58,6 +61,7 @@ export default function MemberTasks() {
   useEffect(() => {
     const todayStr = getLocalDateString();
     setToday(todayStr);
+    setSelectedDate(todayStr);
   }, []);
 
   const activeMemberName = currentMember || "Hasibul Pailan";
@@ -73,6 +77,20 @@ export default function MemberTasks() {
     );
   }, [clients, activeMemberName]);
 
+  // Tasks filtered by active date filter (defaults to today)
+  const dateFilteredTasks = useMemo(() => {
+    if (dateFilterMode === "all") return myTasks;
+    const targetDate = dateFilterMode === "today" ? today : selectedDate;
+    if (!targetDate) return myTasks;
+    return myTasks.filter(t => isTaskOnDate(t, targetDate));
+  }, [myTasks, dateFilterMode, today, selectedDate]);
+
+  // Today-only count for badge
+  const todayTasksCount = useMemo(() => {
+    if (!today) return 0;
+    return myTasks.filter(t => isTaskOnDate(t, today)).length;
+  }, [myTasks, today]);
+
   // Keep local remarks synced with incoming tasks
   useEffect(() => {
     const initial: Record<string, string> = {};
@@ -82,11 +100,11 @@ export default function MemberTasks() {
     setLocalRemarks(prev => ({ ...initial, ...prev }));
   }, [myTasks]);
 
-  // Status Metrics
-  const totalTasks = myTasks.length;
-  const completedTasks = myTasks.filter(t => t.status === "Done" || t.status === "Can't Do").length;
-  const inProgressTasks = myTasks.filter(t => t.status === "In Progress").length;
-  const pendingTasks = myTasks.filter(t => t.status === "Pending").length;
+  // Status Metrics (scoped to the active date filter by default)
+  const totalTasks = dateFilteredTasks.length;
+  const completedTasks = dateFilteredTasks.filter(t => t.status === "Done" || t.status === "Can't Do").length;
+  const inProgressTasks = dateFilteredTasks.filter(t => t.status === "In Progress").length;
+  const pendingTasks = dateFilteredTasks.filter(t => t.status === "Pending").length;
   const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
   // Status change handler with celebration animation
@@ -125,14 +143,16 @@ export default function MemberTasks() {
 
   // 1-Click Copy EOD WhatsApp / Group Report
   const copyEODReport = () => {
-    const dateFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    let report = `📌 *Daily Work Report - ${activeMemberName}* (${dateFormatted})\n`;
+    const activeDateFormatted = dateFilterMode === "today" 
+      ? new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      : (dateFilterMode === "custom" ? selectedDate : "All History");
+    let report = `📌 *Daily Work Report - ${activeMemberName}* (${activeDateFormatted})\n`;
     report += `━━━━━━━━━━━━━━━━━━━━━━\n`;
     
-    if (myTasks.length === 0) {
-      report += `No tasks assigned today.`;
+    if (dateFilteredTasks.length === 0) {
+      report += `No tasks assigned for this date.`;
     } else {
-      myTasks.forEach((t, i) => {
+      dateFilteredTasks.forEach((t, i) => {
         const statusEmoji = t.status === 'Done' ? '✅' : t.status === 'In Progress' ? '⏳' : t.status === "Can't Do" ? '❌' : '📋';
         report += `${i + 1}. *${t.name}* [${t.category || 'General'}]\n`;
         if (t.taskDetails) report += `   └ Instruction: ${t.taskDetails}\n`;
@@ -152,7 +172,7 @@ export default function MemberTasks() {
 
   // Filtered Tasks for display
   const displayedTasks = useMemo(() => {
-    return myTasks.filter(t => {
+    return dateFilteredTasks.filter(t => {
       // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -163,21 +183,17 @@ export default function MemberTasks() {
         if (!matchesName && !matchesCategory && !matchesDetail && !matchesComment) return false;
       }
 
-      // View Filter
-      if (viewFilter === "today") {
-        if (!today) return true;
-        return t.endDate === today || t.startDate === today;
-      }
-      if (viewFilter === "pending") {
+      // Status Filter
+      if (statusFilter === "pending") {
         return t.status === "Pending" || t.status === "In Progress";
       }
-      if (viewFilter === "done") {
+      if (statusFilter === "done") {
         return t.status === "Done" || t.status === "Can't Do";
       }
 
       return true;
     });
-  }, [myTasks, searchQuery, viewFilter, today]);
+  }, [dateFilteredTasks, searchQuery, statusFilter]);
 
   // Motivational sentence based on progress
   const motivationalMessage = useMemo(() => {
@@ -248,6 +264,17 @@ export default function MemberTasks() {
           </button>
         </div>
       </div>
+
+      {/* Date Switcher Bar */}
+      <TaskDateFilterBar
+        dateFilterMode={dateFilterMode}
+        onModeChange={setDateFilterMode}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        todayDate={today}
+        todayTasksCount={todayTasksCount}
+        totalAllTasksCount={myTasks.length}
+      />
 
       {/* Progress & Stat Cards Row */}
       <div className="grid grid-cols-1 xl:grid-cols-[1.25fr_1fr_1fr_1fr] lg:grid-cols-2 gap-5">
@@ -396,7 +423,13 @@ export default function MemberTasks() {
         <div className="p-5 border-b border-[#E3EAF5] bg-gradient-to-r from-white via-[#FAFBFD] to-white flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-[#10254F] text-[18px] tracking-tight">Today's Task Sheet</h3>
+              <h3 className="font-black text-[#10254F] text-[18px] tracking-tight">
+                {dateFilterMode === "today" 
+                  ? "Today's Task Sheet" 
+                  : dateFilterMode === "custom" 
+                  ? `Task Sheet for ${selectedDate}` 
+                  : "All Assigned Tasks History"}
+              </h3>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-50 text-[#1677FF] border border-blue-100">
                 {displayedTasks.length} {displayedTasks.length === 1 ? 'task' : 'tasks'}
               </span>
@@ -419,36 +452,28 @@ export default function MemberTasks() {
               />
             </div>
 
-            {/* View Filter Pill Tabs */}
+            {/* Status Filter Pill Tabs */}
             <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl border border-[#E2E8F0]">
               <button 
-                onClick={() => setViewFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all ${
-                  viewFilter === "all" ? "bg-white text-[#10254F] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
+                onClick={() => setStatusFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all cursor-pointer ${
+                  statusFilter === "all" ? "bg-white text-[#10254F] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
                 }`}
               >
-                All
+                All Status
               </button>
               <button 
-                onClick={() => setViewFilter("today")}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all ${
-                  viewFilter === "today" ? "bg-white text-[#10254F] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
-                }`}
-              >
-                Today Only
-              </button>
-              <button 
-                onClick={() => setViewFilter("pending")}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all ${
-                  viewFilter === "pending" ? "bg-white text-[#FF7900] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
+                onClick={() => setStatusFilter("pending")}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all cursor-pointer ${
+                  statusFilter === "pending" ? "bg-white text-[#FF7900] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
                 }`}
               >
                 Pending
               </button>
               <button 
-                onClick={() => setViewFilter("done")}
-                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all ${
-                  viewFilter === "done" ? "bg-white text-[#10B981] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
+                onClick={() => setStatusFilter("done")}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-extrabold transition-all cursor-pointer ${
+                  statusFilter === "done" ? "bg-white text-[#10B981] shadow-sm" : "text-[#64748B] hover:text-[#10254F]"
                 }`}
               >
                 Done

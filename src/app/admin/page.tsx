@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Users, DollarSign, Activity, PieChart, PackagePlus, UserCheck, Settings, X, AlertCircle, FileText } from "lucide-react";
-import StatCard from "@/components/StatCard";
+import { X, AlertCircle } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM, CATEGORY_OPTIONS } from "@/context/CRMContext";
+import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
+import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 export default function AdminDashboard() {
   const { clients, directoryClients, members, assignMember, addClient, deleteClient, updateClient, updateStatus, dailyReports } = useCRM();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [selectedDate, setSelectedDate] = useState("");
   const [today, setToday] = useState("");
   const [addClientName, setAddClientName] = useState("");
   const [addClientPhone, setAddClientPhone] = useState("");
@@ -31,8 +33,22 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    setToday(new Date().toISOString().split("T")[0]);
+    const todayStr = getLocalDateString();
+    setToday(todayStr);
+    setSelectedDate(todayStr);
   }, []);
+
+  // Filter tasks based on active date filter (defaults to today)
+  const displayedTasks = clients.filter((t) => {
+    if (dateFilterMode === "all") return true;
+    const targetDate = dateFilterMode === "today" ? today : selectedDate;
+    if (!targetDate) return true;
+    return isTaskOnDate(t, targetDate);
+  });
+
+  const todayTasksCount = today
+    ? clients.filter((t) => isTaskOnDate(t, today)).length
+    : 0;
 
   // Calculate dynamic stats
   const totalClients = clients.length;
@@ -55,78 +71,116 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Stats Grid - 2 per row on mobile */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-6">
-        <StatCard 
-          title="Total Clients" 
-          value={totalClients.toLocaleString("en-US")} 
-          subtitle="Active clients this year" 
-          icon={<Users size={20} />} 
-          theme="blue"
-          progress={100}
-        />
-        <StatCard 
-          title="Total Members" 
-          value={members.length.toString()} 
-          subtitle="Active staff members" 
-          icon={<Activity size={20} />} 
-          theme="green"
-          progress={100}
-        />
-        <StatCard 
-          title="Total Expected" 
-          value={`₹ ${(totalExpected / 1000).toFixed(1)}k`} 
-          subtitle="Pipeline target" 
-          icon={<PieChart size={20} />} 
-          theme="orange"
-          progress={100}
-        />
-        <StatCard 
-          title="Total Received" 
-          value={`₹ ${(totalReceived / 1000).toFixed(1)}k`} 
-          subtitle="Revenue collected" 
-          icon={<DollarSign size={20} />} 
-          theme="purple"
-          progress={revenueProgress}
-        />
+      {/* Slim 1-Line Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* Total Clients */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Total Clients</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">{totalClients.toLocaleString("en-US")}</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Progress</span>
+              <span className="text-[#10254F]">100%</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#1677FF]" style={{ width: "100%" }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Members */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Total Members</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">{members.length}</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Progress</span>
+              <span className="text-[#10254F]">100%</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#10B981]" style={{ width: "100%" }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Expected */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Total Expected</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">₹ {(totalExpected / 1000).toFixed(1)}k</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Progress</span>
+              <span className="text-[#10254F]">100%</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-[#FF6B00]" style={{ width: "100%" }}></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Received */}
+        <div className="bg-white rounded-2xl p-3 sm:px-4 border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="text-[12px] sm:text-[13px] font-bold text-[#10254F] truncate">Total Received</span>
+            <span className="text-[16px] sm:text-[18px] font-black text-[#10254F]">₹ {(totalReceived / 1000).toFixed(1)}k</span>
+          </div>
+          <div>
+            <div className="flex justify-between items-center text-[9px] sm:text-[10px] font-extrabold text-[#8292A6] mb-1">
+              <span className="uppercase tracking-wider">Progress</span>
+              <span className="text-[#10254F]">{revenueProgress}%</span>
+            </div>
+            <div className="w-full bg-[#F3F6FB] h-[5px] rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-purple-600" style={{ width: `${revenueProgress}%` }}></div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-6 sm:mt-8">
+      <div className="mt-4 sm:mt-5">
         {/* Main Content Area */}
-        <div className="space-y-6 sm:space-y-8">
+        <div className="space-y-4 sm:space-y-5">
           
-          {/* Quick Actions (Full Color Blocks - 2 per row on mobile) */}
+          {/* Quick Actions (Slim 1-Line - No Icons) */}
           <div>
-            <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-0.5 sm:mb-1">Quick Actions</h3>
-            <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">Frequently used admin tasks</p>
+            <div className="flex items-baseline justify-between mb-1.5">
+              <h3 className="text-sm sm:text-base font-extrabold text-gray-800">Quick Actions</h3>
+              <span className="text-[11px] text-gray-400 font-medium hidden sm:inline">Frequently used admin tasks</span>
+            </div>
             
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              <button onClick={openAddModal} className="bg-[#1B64B1] hover:bg-[#15549A] text-white p-3 sm:p-4 rounded-xl text-left transition-colors flex flex-col justify-between h-24 sm:h-28 shadow-sm cursor-pointer">
-                <PackagePlus size={18} className="mb-1 sm:mb-2 sm:w-5 sm:h-5" />
-                <div>
-                  <p className="font-bold text-xs sm:text-sm">Add Client / Task</p>
-                </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
+              <button
+                type="button"
+                onClick={openAddModal}
+                className="bg-[#1B64B1] hover:bg-[#15549A] text-white py-2.5 px-3 rounded-xl text-center font-bold text-xs sm:text-[13px] transition-colors shadow-2xs cursor-pointer truncate"
+              >
+                Add Client / Task
               </button>
               
-              <Link href="/admin/tasks" className="bg-emerald-500 hover:bg-emerald-600 text-white p-3 sm:p-4 rounded-xl text-left transition-colors flex flex-col justify-between h-24 sm:h-28 shadow-sm">
-                <UserCheck size={18} className="mb-1 sm:mb-2 sm:w-5 sm:h-5" />
-                <div>
-                  <p className="font-bold text-xs sm:text-sm">Manage Tasklist</p>
-                </div>
+              <Link
+                href="/admin/tasks"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-3 rounded-xl text-center font-bold text-xs sm:text-[13px] transition-colors shadow-2xs truncate block"
+              >
+                Manage Tasklist
               </Link>
               
-              <Link href="/admin/attendance" className="bg-orange-500 hover:bg-orange-600 text-white p-3 sm:p-4 rounded-xl text-left transition-colors flex flex-col justify-between h-24 sm:h-28 shadow-sm">
-                <FileText size={18} className="mb-1 sm:mb-2 sm:w-5 sm:h-5" />
-                <div>
-                  <p className="font-bold text-xs sm:text-sm">Daily Reports ({dailyReports.filter(r => r.date === today).length}/{members.length})</p>
-                </div>
+              <Link
+                href="/admin/attendance"
+                className="bg-orange-500 hover:bg-orange-600 text-white py-2.5 px-3 rounded-xl text-center font-bold text-xs sm:text-[13px] transition-colors shadow-2xs truncate block"
+              >
+                Daily Reports ({dailyReports.filter(r => r.date === today).length}/{members.length})
               </Link>
               
-              <Link href="/admin/settings" className="bg-purple-500 hover:bg-purple-600 text-white p-3 sm:p-4 rounded-xl text-left transition-colors flex flex-col justify-between h-24 sm:h-28 shadow-sm">
-                <Settings size={18} className="mb-1 sm:mb-2 sm:w-5 sm:h-5" />
-                <div>
-                  <p className="font-bold text-xs sm:text-sm">Settings</p>
-                </div>
+              <Link
+                href="/admin/settings"
+                className="bg-purple-600 hover:bg-purple-700 text-white py-2.5 px-3 rounded-xl text-center font-bold text-xs sm:text-[13px] transition-colors shadow-2xs truncate block"
+              >
+                Settings
               </Link>
             </div>
           </div>
@@ -153,8 +207,8 @@ export default function AdminDashboard() {
           )}
 
           {/* Master Table Area */}
-          <div className="bg-white rounded-[24px] border border-[#E3EAF5] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6">
-            <div className="flex justify-between items-end mb-4">
+          <div className="bg-white rounded-[24px] border border-[#E3EAF5] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
               <div>
                 <h3 className="text-lg font-extrabold text-[#10254F]">Master Client & Task List</h3>
                 <p className="text-sm text-[#64748B]">Live view of member assignments, statuses, and comments</p>
@@ -163,8 +217,19 @@ export default function AdminDashboard() {
                 Open Full Tasklist →
               </Link>
             </div>
+
+            <TaskDateFilterBar
+              dateFilterMode={dateFilterMode}
+              onModeChange={setDateFilterMode}
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              todayDate={today}
+              todayTasksCount={todayTasksCount}
+              totalAllTasksCount={clients.length}
+            />
+
             <ClientTable 
-              clients={clients} 
+              clients={displayedTasks} 
               isAdmin={true} 
               members={memberNames}
               onAssignChange={handleAssignChange}
@@ -198,8 +263,8 @@ export default function AdminDashboard() {
                 category: formData.get("category") as string,
                 taskType: (formData.get("taskType") as "Regular" | "One-Time") || "Regular",
                 taskDetails: formData.get("taskDetails") as string,
-                startDate: (formData.get("startDate") as string) || today,
-                endDate: (formData.get("endDate") as string) || today,
+                startDate: (formData.get("startDate") as string) || selectedDate || today,
+                endDate: (formData.get("endDate") as string) || selectedDate || today,
                 expected: formData.get("expected") as string,
                 received: "0",
                 status: "Pending",
@@ -283,11 +348,11 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input required name="startDate" defaultValue={today} type="date" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input required name="startDate" defaultValue={selectedDate || today} type="date" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
-                  <input required name="endDate" defaultValue={today} type="date" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input required name="endDate" defaultValue={selectedDate || today} type="date" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
               </div>
               

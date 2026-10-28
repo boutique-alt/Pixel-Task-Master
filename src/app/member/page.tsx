@@ -4,13 +4,15 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import ClientTable from "@/components/ClientTable";
-import { useCRM } from "@/context/CRMContext";
+import { useCRM, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
 import MemberSendReportModal from "@/components/MemberSendReportModal";
+import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 export default function MemberDashboard() {
   const { clients, currentMember, leaveTypes, leaveRequests, attendanceRecords, attendanceConfig, hrNotices, updateStatus, updateComment } = useCRM();
   
-  const [viewFilter, setViewFilter] = useState("all");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [selectedDate, setSelectedDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [progressFilter, setProgressFilter] = useState("today");
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -29,26 +31,38 @@ export default function MemberDashboard() {
     updateComment(id, newComment, activeMemberName === "all" ? "Member" : activeMemberName);
   };
 
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === "Done" || t.status === "Can't Do").length;
-  const pendingTasks = tasks.filter(t => t.status === "Pending").length;
-  const inProgressTasks = tasks.filter(t => t.status === "In Progress").length;
-  const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
-
   const [today, setToday] = useState("");
   const [nowTs, setNowTs] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
 
   useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setToday(now.toISOString().split('T')[0]);
-      setNowTs(now.getTime());
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 30000);
+    const todayStr = getLocalDateString();
+    setToday(todayStr);
+    setSelectedDate(todayStr);
+    setNowTs(Date.now());
+    const timer = setInterval(() => {
+      setNowTs(Date.now());
+    }, 30000);
     return () => clearInterval(timer);
   }, []);
+
+  // Filter tasks based on active date filter (defaults to today)
+  const dateFilteredTasks = tasks.filter((t) => {
+    if (dateFilterMode === "all") return true;
+    const targetDate = dateFilterMode === "today" ? today : selectedDate;
+    if (!targetDate) return true;
+    return isTaskOnDate(t, targetDate);
+  });
+
+  const todayTasksCount = today
+    ? tasks.filter((t) => isTaskOnDate(t, today)).length
+    : 0;
+
+  const totalTasks = dateFilteredTasks.length;
+  const completedTasks = dateFilteredTasks.filter(t => t.status === "Done" || t.status === "Can't Do").length;
+  const pendingTasks = dateFilteredTasks.filter(t => t.status === "Pending").length;
+  const inProgressTasks = dateFilteredTasks.filter(t => t.status === "In Progress").length;
+  const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
   const strictDueToday = tasks.filter(t => t.status === "Pending" && today && t.endDate <= today);
   const dueTodayTasks = strictDueToday.length > 0 ? strictDueToday : tasks.filter(t => t.status === "Pending");
@@ -61,11 +75,8 @@ export default function MemberDashboard() {
     }
   }, [today, strictDueToday.length]);
 
-  const displayedTasks = tasks.filter(t => {
+  const displayedTasks = dateFilteredTasks.filter(t => {
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (viewFilter === "daily") {
-      return !today ? true : (t.endDate <= today && t.status === "Pending"); 
-    }
     return true;
   });
 
@@ -486,26 +497,13 @@ export default function MemberDashboard() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
             </div>
             <div>
-              <h3 className="font-extrabold text-[#10254F] text-[16px] tracking-tight">My Task List</h3>
+              <h3 className="font-extrabold text-[#10254F] text-[16px] tracking-tight">
+                {dateFilterMode === "today" ? "Today's Task List" : dateFilterMode === "custom" ? `Task List for ${selectedDate}` : "All Assigned Tasks History"}
+              </h3>
               <p className="text-[12px] text-[#64748B] mt-0.5">Update statuses and add comments directly in the table below.</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <select 
-                value={viewFilter}
-                onChange={e => setViewFilter(e.target.value)}
-                className="appearance-none bg-white border border-[#E3EAF5] text-[12px] font-bold text-[#10254F] pl-8 pr-8 py-2 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-              >
-                <option value="all">All Assigned Tasks</option>
-                <option value="daily">Daily View (Due Today)</option>
-                <option value="weekly">Weekly View</option>
-                <option value="monthly">Monthly View</option>
-              </select>
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-              <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
-            
             <div className="relative">
               <select 
                 value={statusFilter}
@@ -532,6 +530,19 @@ export default function MemberDashboard() {
               <span>Send Report to Sir</span>
             </button>
           </div>
+        </div>
+
+        {/* Date Filter Bar */}
+        <div className="px-5 py-3 border-b border-[#E3EAF5] bg-[#F8FAFC]">
+          <TaskDateFilterBar
+            dateFilterMode={dateFilterMode}
+            onModeChange={setDateFilterMode}
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            todayDate={today}
+            todayTasksCount={todayTasksCount}
+            totalAllTasksCount={tasks.length}
+          />
         </div>
         <ClientTable 
           clients={displayedTasks} 
