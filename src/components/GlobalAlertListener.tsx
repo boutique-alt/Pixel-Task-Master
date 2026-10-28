@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useCRM, BroadcastAlert } from "@/context/CRMContext";
-import { playAlertSound, stopAlertSound } from "@/lib/soundService";
+import { playAlertSound, stopAlertSound, speakText } from "@/lib/soundService";
 import { 
   subscribeToPushNotifications, 
   getNotificationPermissionStatus,
@@ -124,8 +124,53 @@ export default function GlobalAlertListener() {
       playAlertSound({ volume: pendingAlert.priority === "urgent" ? 1.0 : 0.85 });
       // Trigger native system desktop notification
       triggerNativeDesktopNotification(pendingAlert);
+
+      // If speech voice note is included
+      if (pendingAlert.message && pendingAlert.title.toLowerCase().includes("reminder")) {
+        speakText(pendingAlert.message);
+      }
     }
   }, [broadcastAlerts, activeName, activeAlert]);
+
+  // 6:00 PM Daily Reminder for Admin: Remind Pixelians to update daily tasks
+  useEffect(() => {
+    const isAdmin = sessionUser?.role === "admin" || !sessionUser; // default or admin logged in
+    if (!isAdmin) return;
+
+    const checkDaily6PmReminder = () => {
+      const now = new Date();
+      const todayKey = now.toISOString().split("T")[0];
+      const reminderDoneKey = `ptm_6pm_task_reminder_${todayKey}`;
+
+      // Check if it's 6:00 PM (18:00 to 18:59)
+      if (now.getHours() === 18) {
+        const alreadyFired = localStorage.getItem(reminderDoneKey);
+        if (!alreadyFired) {
+          localStorage.setItem(reminderDoneKey, "true");
+          // Play ringtone
+          playAlertSound({ volume: 1.0 });
+          // Native system notification
+          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification("⏰ 6:00 PM Task Reminder", {
+                body: "Please tell your Pixelians to update their daily tasks.",
+                icon: "/icon-192.png",
+              });
+            } catch {}
+          }
+          // English voice announcement
+          setTimeout(() => {
+            speakText("Please tell your Pixelians to update their daily tasks.");
+          }, 1200);
+        }
+      }
+    };
+
+    // Run immediately and every 30 seconds
+    checkDaily6PmReminder();
+    const interval = setInterval(checkDaily6PmReminder, 30000);
+    return () => clearInterval(interval);
+  }, [sessionUser]);
 
   const handleAcknowledge = async () => {
     if (!activeAlert) return;

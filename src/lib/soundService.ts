@@ -73,3 +73,20 @@ export function playFallbackChime() {
     console.warn("Fallback chime error:", e);
   }
 }
+
+// Browser Text-To-Speech (English Voice) for Reminders
+export function speakText(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.cancel(); // Stop any pending speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.warn("Text-to-speech error:", err);
+  }
+}
+

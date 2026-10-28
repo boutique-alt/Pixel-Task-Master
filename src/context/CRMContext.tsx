@@ -19,8 +19,10 @@ import {
   upsertAuthorizedDeviceDb,
   fetchLeaveRequestsDb,
   upsertLeaveRequestDb,
+  deleteLeaveRequestDb,
   fetchLeaveTypesDb,
   upsertLeaveTypeDb,
+  deleteLeaveTypeDb,
   fetchBankDetailsDb,
   upsertBankDetailDb,
   deleteBankDetailDb,
@@ -45,7 +47,21 @@ import {
   fetchBroadcastAlertsDb,
   upsertBroadcastAlertDb,
   deleteBroadcastAlertDb,
+  fetchCompanyHolidaysDb,
+  upsertCompanyHolidayDb,
+  deleteCompanyHolidayDb,
+  fetchMemberHolidaySelectionsDb,
+  upsertMemberHolidaySelectionDb,
+  deleteMemberHolidaySelectionDb,
 } from "@/lib/crmService";
+import { 
+  CompanyHoliday, 
+  MemberHolidaySelection, 
+  INITIAL_COMPANY_HOLIDAYS, 
+  MAX_MEMBER_HOLIDAYS_QUOTA 
+} from "@/lib/holidayData";
+export type { CompanyHoliday, MemberHolidaySelection };
+export { MAX_MEMBER_HOLIDAYS_QUOTA };
 import { getSessionUser, clearSessionUser, AppUser } from "@/lib/authService";
 
 export type Activity = {
@@ -278,6 +294,13 @@ interface CRMContextType {
   sendBroadcastAlert: (alert: Omit<BroadcastAlert, "id" | "createdAt" | "createdTimeDisplay" | "createdDate" | "acknowledgedBy">) => Promise<{ success: boolean; alert: BroadcastAlert }>;
   acknowledgeAlert: (alertId: string, memberName: string) => Promise<void>;
   deleteBroadcastAlert: (id: string) => void;
+  // Company Holiday List & Member Selection
+  companyHolidays: CompanyHoliday[];
+  memberHolidaySelections: MemberHolidaySelection[];
+  addCompanyHoliday: (holiday: Omit<CompanyHoliday, "id">) => void;
+  deleteCompanyHoliday: (id: string) => void;
+  saveMemberHolidaySelection: (memberName: string, selectedHolidayIds: string[]) => void;
+  updateMemberHolidaySelectionStatus: (id: string, status: MemberHolidaySelection["status"], adminRemark?: string) => void;
   // Task CRUD
   updateStatus: (id: string, status: Client["status"], user: string) => void;
   updateComment: (id: string, comment: string, user: string) => void;
@@ -509,6 +532,8 @@ const STORAGE_KEYS = {
   SALARY_PAYMENTS: "ptm_crm_salary_payments_v1",
   DAILY_REPORTS: "ptm_crm_daily_reports_v1",
   BROADCAST_ALERTS: "ptm_crm_broadcast_alerts_v1",
+  COMPANY_HOLIDAYS: "ptm_crm_company_holidays_v1",
+  HOLIDAY_SELECTIONS: "ptm_crm_holiday_selections_v1",
 };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -566,6 +591,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const [salaryPayments, setSalaryPayments] = useState<SalaryPaymentRecord[]>(INITIAL_SALARY_PAYMENTS);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [broadcastAlerts, setBroadcastAlerts] = useState<BroadcastAlert[]>([]);
+  const [companyHolidays, setCompanyHolidays] = useState<CompanyHoliday[]>(INITIAL_COMPANY_HOLIDAYS);
+  const [memberHolidaySelections, setMemberHolidaySelections] = useState<MemberHolidaySelection[]>([]);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
@@ -600,6 +627,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const savedSalaryPayments = localStorage.getItem(STORAGE_KEYS.SALARY_PAYMENTS);
       const savedDailyReports = localStorage.getItem(STORAGE_KEYS.DAILY_REPORTS);
       const savedBroadcastAlerts = localStorage.getItem(STORAGE_KEYS.BROADCAST_ALERTS);
+      const savedHolidays = localStorage.getItem(STORAGE_KEYS.COMPANY_HOLIDAYS);
+      const savedHolidaySelections = localStorage.getItem(STORAGE_KEYS.HOLIDAY_SELECTIONS);
 
       let parsedClients: Client[] | null = null;
       if (savedClients) {
@@ -612,6 +641,18 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (savedLeaveTypes) setLeaveTypes(JSON.parse(savedLeaveTypes));
       if (savedLeaveRequests) setLeaveRequests(JSON.parse(savedLeaveRequests));
       if (savedHrNotices) setHrNotices(JSON.parse(savedHrNotices));
+      if (savedHolidays) {
+        try {
+          const parsed = JSON.parse(savedHolidays);
+          if (Array.isArray(parsed) && parsed.length > 0) setCompanyHolidays(parsed);
+        } catch {}
+      }
+      if (savedHolidaySelections) {
+        try {
+          const parsed = JSON.parse(savedHolidaySelections);
+          if (Array.isArray(parsed)) setMemberHolidaySelections(parsed);
+        } catch {}
+      }
       if (savedOfficeRules) {
         try {
           const parsedRules = JSON.parse(savedOfficeRules);
@@ -721,6 +762,26 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       // 4. Live fetch from Supabase Cloud Database
       (async () => {
         try {
+          const fetchPromises = [
+            fetchMembersDb(),
+            fetchDirectoryClientsDb(),
+            fetchTasksDb(),
+            fetchAttendanceRecordsDb(),
+            fetchAuthorizedDevicesDb(),
+            fetchLeaveRequestsDb(),
+            fetchLeaveTypesDb(),
+            fetchBankDetailsDb(),
+            fetchSalaryPaymentsDb(),
+            fetchHRNoticesDb(),
+            fetchOfficeRulesDb(),
+            fetchActivitiesDb(),
+            fetchAttendanceConfigDb(),
+            fetchDailyReportsDb(),
+            fetchBroadcastAlertsDb(),
+            fetchCompanyHolidaysDb(),
+            fetchMemberHolidaySelectionsDb(),
+          ] as const;
+
           const [
             dbMembers, 
             dbClients, 
@@ -737,23 +798,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             dbConfig,
             dbReports,
             dbAlerts,
-          ] = await Promise.all([
-            fetchMembersDb(),
-            fetchDirectoryClientsDb(),
-            fetchTasksDb(),
-            fetchAttendanceRecordsDb(),
-            fetchAuthorizedDevicesDb(),
-            fetchLeaveRequestsDb(),
-            fetchLeaveTypesDb(),
-            fetchBankDetailsDb(),
-            fetchSalaryPaymentsDb(),
-            fetchHRNoticesDb(),
-            fetchOfficeRulesDb(),
-            fetchActivitiesDb(),
-            fetchAttendanceConfigDb(),
-            fetchDailyReportsDb(),
-            fetchBroadcastAlertsDb(),
-          ]);
+            dbHolidays,
+            dbSelections,
+          ] = await Promise.all(fetchPromises);
 
           if (dbConfig) {
             const mergedDbConfig: OfficeAttendanceConfig = {
@@ -816,6 +863,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           if (dbActs && dbActs.length > 0) setActivities(dbActs);
           if (dbReports && dbReports.length > 0) setDailyReports(dbReports);
           if (dbAlerts && dbAlerts.length > 0) setBroadcastAlerts(dbAlerts);
+          if (dbHolidays && dbHolidays.length > 0) setCompanyHolidays(dbHolidays);
+          if (dbSelections && dbSelections.length > 0) setMemberHolidaySelections(dbSelections);
         } catch (err) {
           console.warn("Supabase initial sync error:", err);
         } finally {
@@ -1004,6 +1053,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (status === "Done") received = target.expected;
       if (status === "Can't Do") received = "0";
       upsertTaskDb({ ...target, status, received });
+
+      // Notify Admin if member updated
+      const isMember = target.member && user.toLowerCase() === target.member.toLowerCase();
+      if (isMember) {
+        sendBroadcastAlert({
+          title: `Task Status Update: ${target.name}`,
+          message: `${user} updated status to "${status}" on task "${target.name}".`,
+          priority: "normal",
+          targetType: "all",
+        }).catch(() => {});
+      }
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id) {
@@ -1021,6 +1081,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (target && target.comments !== comment) {
       addActivity(`${user} updated comment on ${target.name}: "${comment || "Cleared"}"`, "comment");
       upsertTaskDb({ ...target, comments: comment });
+
+      // Notify Admin if member updated
+      const isMember = target.member && user.toLowerCase() === target.member.toLowerCase();
+      if (isMember) {
+        sendBroadcastAlert({
+          title: `Task Comment from ${user}`,
+          message: `${user} commented on "${target.name}": "${comment}"`,
+          priority: "normal",
+          targetType: "all",
+        }).catch(() => {});
+      }
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id && c.comments !== comment) {
@@ -1035,6 +1106,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (target) {
       addActivity(`${adminName} assigned ${target.name} to ${memberName}`, "assign");
       upsertTaskDb({ ...target, member: memberName });
+
+      // Notification with music specifically to that assigned member
+      if (memberName) {
+        sendBroadcastAlert({
+          title: "New Task Assigned! 🎯",
+          message: `${adminName} assigned task "${target.name}" (${target.category}) to you.`,
+          priority: "normal",
+          targetType: "individual",
+          targetMember: memberName,
+        }).catch(() => {});
+      }
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id) {
@@ -1052,6 +1134,14 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     upsertTaskDb(client);
     if (client.member) {
       setCurrentMember(client.member);
+      // Notification with music specifically to assigned member
+      sendBroadcastAlert({
+        title: "New Task Assigned! 🎯",
+        message: `${adminName} assigned task "${client.name}" (${client.category}) to you.`,
+        priority: "normal",
+        targetType: "individual",
+        targetMember: client.member,
+      }).catch(() => {});
     }
     setDirectoryClients((prev) => {
       const exists = prev.some((dc) => dc.name.toLowerCase() === client.name.toLowerCase());
@@ -1195,7 +1285,16 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteLeaveType = (id: string) => {
-    setLeaveTypes((prev) => prev.filter((lt) => lt.id !== id));
+    setLeaveTypes((prev) => {
+      const updated = prev.filter((lt) => lt.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_TYPES, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    deleteLeaveTypeDb(id);
   };
 
   // --- LEAVE REQUESTS CRUD (MEMBER & ADMIN) ---
@@ -1206,7 +1305,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       status: "Pending",
       appliedAt: getLocalDateString(),
     };
-    setLeaveRequests((prev) => [newReq, ...prev]);
+    setLeaveRequests((prev) => {
+      const updated = [newReq, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
     upsertLeaveRequestDb(newReq);
     addActivity(`${req.member} applied for ${req.days} day(s) of ${req.leaveType}`, "add");
   };
@@ -1217,17 +1324,32 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       upsertLeaveRequestDb({ ...target, status, adminRemark });
       addActivity(`Admin ${status.toLowerCase()} ${target.member}'s ${target.leaveType} request`, "status");
     }
-    setLeaveRequests((prev) =>
-      prev.map((lr) =>
+    setLeaveRequests((prev) => {
+      const updated = prev.map((lr) =>
         lr.id === id
           ? { ...lr, status, adminRemark: adminRemark !== undefined ? adminRemark : lr.adminRemark }
           : lr
-      )
-    );
+      );
+      try {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
   };
 
   const deleteLeaveRequest = (id: string) => {
-    setLeaveRequests((prev) => prev.filter((lr) => lr.id !== id));
+    setLeaveRequests((prev) => {
+      const updated = prev.filter((lr) => lr.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.LEAVE_REQUESTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    deleteLeaveRequestDb(id);
   };
 
   // --- ATTENDANCE & SECURITY CRUD ---
@@ -1862,6 +1984,134 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     deleteBroadcastAlertDb(id);
   };
 
+  // Company Holidays & Member Selection CRUD
+  const addCompanyHoliday = (holiday: Omit<CompanyHoliday, "id">) => {
+    const newHoliday: CompanyHoliday = {
+      ...holiday,
+      id: `hol_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    };
+    setCompanyHolidays((prev) => {
+      const updated = [...prev, newHoliday].sort((a, b) => a.date.localeCompare(b.date));
+      try {
+        localStorage.setItem(STORAGE_KEYS.COMPANY_HOLIDAYS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    upsertCompanyHolidayDb(newHoliday);
+  };
+
+  const deleteCompanyHoliday = (id: string) => {
+    setCompanyHolidays((prev) => {
+      const updated = prev.filter((h) => h.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.COMPANY_HOLIDAYS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+    deleteCompanyHolidayDb(id);
+  };
+
+  const saveMemberHolidaySelection = (memberName: string, selectedHolidayIds: string[]) => {
+    const cleanMember = memberName.trim();
+    const existing = memberHolidaySelections.find(
+      (s) => s.member.toLowerCase() === cleanMember.toLowerCase()
+    );
+
+    // If member deselected all holidays (0 days chosen), clear the submission
+    if (selectedHolidayIds.length === 0) {
+      setMemberHolidaySelections((prev) => {
+        const updated = prev.filter((s) => s.member.toLowerCase() !== cleanMember.toLowerCase());
+        try {
+          localStorage.setItem(STORAGE_KEYS.HOLIDAY_SELECTIONS, JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+        return updated;
+      });
+      if (existing) {
+        // Delete from office_rules DB
+        deleteMemberHolidaySelectionDb(existing.id);
+      }
+      addActivity(`${cleanMember} cleared all selected holidays (0 days)`, "status");
+      return;
+    }
+
+    const updatedSelection: MemberHolidaySelection = {
+      id: existing ? existing.id : `hols_${cleanMember.toLowerCase().replace(/\s+/g, "_")}`,
+      member: cleanMember,
+      selectedHolidayIds,
+      status: "Pending", // Any modification requires admin approval
+      adminRemark: "",
+      updatedAt: new Date().toISOString(),
+    };
+
+    setMemberHolidaySelections((prev) => {
+      const other = prev.filter((s) => s.member.toLowerCase() !== cleanMember.toLowerCase());
+      const updated = [updatedSelection, ...other];
+      try {
+        localStorage.setItem(STORAGE_KEYS.HOLIDAY_SELECTIONS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    upsertMemberHolidaySelectionDb(updatedSelection);
+    addActivity(`${cleanMember} updated their chosen holiday list (${selectedHolidayIds.length} days)`, "status");
+
+    // Notification with music to Admin
+    sendBroadcastAlert({
+      title: "Holiday Request Update",
+      message: `${cleanMember} submitted / updated their selected holiday list (${selectedHolidayIds.length} days). Please review & approve.`,
+      priority: "normal",
+      targetType: "all",
+    }).catch(() => {});
+  };
+
+  const updateMemberHolidaySelectionStatus = (
+    id: string,
+    status: MemberHolidaySelection["status"],
+    adminRemark?: string
+  ) => {
+    let targetMember = "";
+    setMemberHolidaySelections((prev) => {
+      const updated = prev.map((item) => {
+        if (item.id === id) {
+          targetMember = item.member;
+          const mod = {
+            ...item,
+            status,
+            adminRemark: adminRemark !== undefined ? adminRemark : item.adminRemark,
+          };
+          upsertMemberHolidaySelectionDb(mod);
+          return mod;
+        }
+        return item;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.HOLIDAY_SELECTIONS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    if (targetMember) {
+      // Notification with music specifically to that member
+      sendBroadcastAlert({
+        title: `Holiday Selection ${status}`,
+        message: `Admin has ${status.toLowerCase()} your chosen holiday list.${adminRemark ? ` Note: "${adminRemark}"` : ""}`,
+        priority: status === "Approved" ? "normal" : "urgent",
+        targetType: "individual",
+        targetMember: targetMember,
+      }).catch(() => {});
+    }
+  };
+
   const logout = () => {
     clearSessionUser();
     setSessionUserState(null);
@@ -1882,6 +2132,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       bankDetails, salaryPayments,
       dailyReports, submitDailyReport, deleteDailyReport,
       broadcastAlerts, sendBroadcastAlert, acknowledgeAlert, deleteBroadcastAlert,
+      companyHolidays, memberHolidaySelections, addCompanyHoliday, deleteCompanyHoliday, saveMemberHolidaySelection, updateMemberHolidaySelectionStatus,
       updateStatus, updateComment, assignMember, 
       addClient, deleteClient, updateClient,
       addMember, updateMember, deleteMember,

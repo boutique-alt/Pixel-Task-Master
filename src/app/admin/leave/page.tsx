@@ -14,10 +14,22 @@ import {
   X,
   Settings2,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  Sparkles,
+  Check,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import StatCard from "@/components/StatCard";
-import { useCRM, LeaveTypeOption, LeaveRequest } from "@/context/CRMContext";
+import { 
+  useCRM, 
+  LeaveTypeOption, 
+  LeaveRequest, 
+  CompanyHoliday, 
+  MemberHolidaySelection,
+  MAX_MEMBER_HOLIDAYS_QUOTA 
+} from "@/context/CRMContext";
+import { formatHolidayDate } from "@/lib/holidayData";
 
 export default function AdminLeavePage() {
   const {
@@ -29,11 +41,29 @@ export default function AdminLeavePage() {
     deleteLeaveType,
     updateLeaveRequestStatus,
     deleteLeaveRequest,
+    companyHolidays,
+    memberHolidaySelections,
+    addCompanyHoliday,
+    deleteCompanyHoliday,
+    updateMemberHolidaySelectionStatus,
   } = useCRM();
+
+  const [activeTab, setActiveTab] = useState<"holiday_selections" | "holiday_master" | "regular_leaves">("holiday_selections");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [memberFilter, setMemberFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // New Holiday Form Modal
+  const [isAddHolidayOpen, setIsAddHolidayOpen] = useState(false);
+  const [newHolidayName, setNewHolidayName] = useState("");
+  const [newHolidayDate, setNewHolidayDate] = useState("");
+  const [newHolidayDay, setNewHolidayDay] = useState("");
+
+  // Reviewing Member Holiday Selection Modal
+  const [reviewingSelection, setReviewingSelection] = useState<MemberHolidaySelection | null>(null);
+  const [selectionRemark, setSelectionRemark] = useState("");
+  const [expandedMemberSelection, setExpandedMemberSelection] = useState<string | null>(null);
 
   // Modals for Leave Type CRUD
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
@@ -125,38 +155,300 @@ export default function AdminLeavePage() {
       {/* KPI Stat Cards - 2 per row on mobile */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
         <StatCard
-          title="Pending Requests"
+          title="Holiday Submissions"
+          value={memberHolidaySelections.length.toString()}
+          subtitle={`${memberHolidaySelections.filter((s) => s.status === "Pending").length} pending approval`}
+          icon={<Sparkles size={22} />}
+          theme="blue"
+          progress={members.length === 0 ? 0 : Math.round((memberHolidaySelections.length / members.length) * 100)}
+        />
+        <StatCard
+          title="Master Holidays"
+          value={companyHolidays.length.toString()}
+          subtitle="Available for members"
+          icon={<CalendarDays size={22} />}
+          theme="purple"
+          progress={100}
+        />
+        <StatCard
+          title="Pending Regular Leaves"
           value={pendingCount.toString()}
-          subtitle="Awaiting admin decision"
+          subtitle="Casual / Sick applications"
           icon={<Clock size={22} />}
           theme="orange"
           progress={leaveRequests.length === 0 ? 0 : Math.round((pendingCount / leaveRequests.length) * 100)}
         />
         <StatCard
-          title="Approved Leaves"
-          value={approvedCount.toString()}
-          subtitle="Requests approved this year"
-          icon={<CheckCircle2 size={22} />}
-          theme="green"
-          progress={leaveRequests.length === 0 ? 0 : Math.round((approvedCount / leaveRequests.length) * 100)}
-        />
-        <StatCard
-          title="Active Leave Options"
-          value={`${activeTypesCount} / ${leaveTypes.length}`}
-          subtitle="Selectable by members"
-          icon={<Settings2 size={22} />}
-          theme="purple"
-          progress={leaveTypes.length === 0 ? 0 : Math.round((activeTypesCount / leaveTypes.length) * 100)}
-        />
-        <StatCard
-          title="Total Approved Days"
+          title="Approved Regular Days"
           value={`${totalApprovedDays} Days`}
           subtitle="Across all team members"
-          icon={<Calendar size={22} />}
-          theme="blue"
+          icon={<CheckCircle2 size={22} />}
+          theme="green"
           progress={100}
         />
       </div>
+
+      {/* Admin Tabs */}
+      <div className="flex items-center gap-2 sm:gap-3 border-b border-[#E3EAF5] pb-2 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab("holiday_selections")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === "holiday_selections"
+              ? "bg-[#1677FF] text-white shadow-md shadow-[#1677FF]/20"
+              : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E3EAF5]"
+          }`}
+        >
+          <Sparkles size={16} />
+          <span>Member Holiday Selections ({memberHolidaySelections.length})</span>
+          {memberHolidaySelections.filter((s) => s.status === "Pending").length > 0 && (
+            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab("holiday_master")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === "holiday_master"
+              ? "bg-[#1677FF] text-white shadow-md shadow-[#1677FF]/20"
+              : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E3EAF5]"
+          }`}
+        >
+          <CalendarDays size={16} />
+          <span>Master Holiday List ({companyHolidays.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("regular_leaves")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === "regular_leaves"
+              ? "bg-[#1677FF] text-white shadow-md shadow-[#1677FF]/20"
+              : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E3EAF5]"
+          }`}
+        >
+          <Clock size={16} />
+          <span>Regular Leave Requests & Quotas</span>
+        </button>
+      </div>
+
+      {/* TAB 1: MEMBER HOLIDAY SELECTIONS REVIEW */}
+      {activeTab === "holiday_selections" && (
+        <div className="bg-white rounded-[24px] border border-[#E3EAF5] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+          <div className="p-6 border-b border-[#E3EAF5] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#F8FAFC]">
+            <div>
+              <h3 className="font-extrabold text-[#10254F] text-[18px] tracking-tight flex items-center gap-2">
+                <Sparkles size={18} className="text-[#1677FF]" />
+                Member Chosen Holidays (Max {MAX_MEMBER_HOLIDAYS_QUOTA} Days Quota)
+              </h3>
+              <p className="text-[13px] text-[#64748B] mt-0.5">
+                Review which holidays members have picked out of the master list. Approve or reject their selections.
+              </p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-[#E3EAF5]">
+            {members.map((member) => {
+              const selection = memberHolidaySelections.find(
+                (s) => s.member.toLowerCase() === member.name.toLowerCase()
+              );
+              const selectedCount = selection?.selectedHolidayIds?.length || 0;
+              const isExpanded = expandedMemberSelection === member.name;
+
+              const chosenHolidays = companyHolidays.filter((h) =>
+                selection?.selectedHolidayIds?.includes(h.id)
+              );
+
+              return (
+                <div key={member.id} className="p-5 hover:bg-[#FAFBFD] transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#1677FF]/10 text-[#1677FF] font-extrabold flex items-center justify-center text-[15px]">
+                        {member.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-[15px] text-[#10254F] flex items-center gap-2">
+                          {member.name}
+                          {selection && selectedCount > 0 ? (
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                selection.status === "Approved"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : selection.status === "Rejected"
+                                  ? "bg-red-100 text-red-600"
+                                  : "bg-amber-100 text-amber-700"
+                              }`}
+                            >
+                              {selection.status}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500">
+                              0 Days Selected
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-[12px] text-[#64748B] font-medium">
+                          {member.role || "Team Member"} • Selected {selectedCount} / {MAX_MEMBER_HOLIDAYS_QUOTA} days
+                          {selection && selectedCount > 0 && selection.updatedAt && ` • Updated ${new Date(selection.updatedAt).toLocaleDateString()}`}
+                        </p>
+                        {selection && selectedCount > 0 && selection.adminRemark && (
+                          <p className="text-[11px] text-[#1677FF] font-bold mt-1">
+                            Admin Note: &ldquo;{selection.adminRemark}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {selectedCount > 0 && (
+                        <button
+                          onClick={() => setExpandedMemberSelection(isExpanded ? null : member.name)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E3EAF5] rounded-xl text-[12px] font-bold text-[#64748B] hover:bg-[#F3F6FB] cursor-pointer"
+                        >
+                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          <span>{isExpanded ? "Hide Dates" : "View Chosen Days"}</span>
+                        </button>
+                      )}
+
+                      {selection && selectedCount > 0 ? (
+                        <>
+                          <button
+                            onClick={() => updateMemberHolidaySelectionStatus(selection.id, "Approved")}
+                            disabled={selection.status === "Approved"}
+                            className={`px-3 py-1.5 rounded-xl text-[12px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer ${
+                              selection.status === "Approved"
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            }`}
+                          >
+                            <CheckCircle2 size={13} /> Approve
+                          </button>
+
+                          <button
+                            onClick={() => updateMemberHolidaySelectionStatus(selection.id, "Rejected")}
+                            disabled={selection.status === "Rejected"}
+                            className={`px-3 py-1.5 rounded-xl text-[12px] font-extrabold flex items-center gap-1 transition-colors cursor-pointer ${
+                              selection.status === "Rejected"
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : "bg-red-500 hover:bg-red-600 text-white shadow-sm"
+                            }`}
+                          >
+                            <XCircle size={13} /> Reject
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setReviewingSelection(selection);
+                              setSelectionRemark(selection.adminRemark || "");
+                            }}
+                            className="p-2 text-[#1677FF] hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
+                            title="Add Admin Note / Modify"
+                          >
+                            <MessageSquare size={15} />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[12px] text-[#94A3B8] font-semibold italic px-2">
+                          No holidays submitted
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded List of Dates */}
+                  {isExpanded && (
+                    <div className="mt-4 pt-4 border-t border-[#E3EAF5]/60 pl-2">
+                      <p className="text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider mb-2">
+                        {member.name}&apos;s Selected Days ({chosenHolidays.length}):
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {chosenHolidays.map((h) => (
+                          <div
+                            key={h.id}
+                            className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 text-[12px] flex items-center justify-between"
+                          >
+                            <div>
+                              <p className="font-extrabold text-[#10254F]">{h.name}</p>
+                              <p className="text-[11px] text-[#64748B] font-medium">
+                                {formatHolidayDate(h.date)} ({h.day})
+                              </p>
+                            </div>
+                            <span className="w-2 h-2 rounded-full bg-[#1677FF]"></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: MASTER HOLIDAY LIST (ADMIN CAN ADD / DELETE) */}
+      {activeTab === "holiday_master" && (
+        <div className="bg-white rounded-[24px] border border-[#E3EAF5] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
+          <div className="p-6 border-b border-[#E3EAF5] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#F8FAFC]">
+            <div>
+              <h3 className="font-extrabold text-[#10254F] text-[18px] tracking-tight">
+                Master Holiday Calendar (Total: {companyHolidays.length} Days)
+              </h3>
+              <p className="text-[13px] text-[#64748B] mt-0.5">
+                These holidays are presented to members. Each member can select up to {MAX_MEMBER_HOLIDAYS_QUOTA} of these holidays.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsAddHolidayOpen(true)}
+              className="flex items-center gap-1.5 bg-[#1677FF] hover:bg-[#1260cc] text-white px-4 py-2.5 rounded-xl text-[13px] font-extrabold transition-colors shadow-sm cursor-pointer self-start sm:self-auto"
+            >
+              <Plus size={15} /> Add Holiday
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#F8FAFC] border-b border-[#E3EAF5] text-[11px] font-extrabold text-[#64748B] uppercase tracking-wider">
+                  <th className="p-4">#</th>
+                  <th className="p-4">Date</th>
+                  <th className="p-4">Day</th>
+                  <th className="p-4">Holiday Name</th>
+                  <th className="p-4 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E3EAF5]">
+                {companyHolidays.map((h, idx) => (
+                  <tr key={h.id} className="hover:bg-[#FAFBFD] transition-colors">
+                    <td className="p-4 text-[12px] font-bold text-[#64748B]">{idx + 1}</td>
+                    <td className="p-4">
+                      <span className="font-extrabold text-[13px] text-[#10254F] font-medium">{formatHolidayDate(h.date)}</span>
+                    </td>
+                    <td className="p-4 text-[12px] font-bold text-[#64748B]">{h.day}</td>
+                    <td className="p-4 text-[13px] font-extrabold text-[#1E293B]">{h.name}</td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete holiday "${h.name}"?`)) {
+                            deleteCompanyHoliday(h.id);
+                          }
+                        }}
+                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Holiday"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: REGULAR LEAVES & QUOTA SETTINGS */}
+      {activeTab === "regular_leaves" && (
+        <div className="space-y-6">
 
       {/* SECTION 1: LEAVE OPTIONS & QUOTA SETTINGS (ADMIN CRUD) */}
       <div className="bg-white rounded-[24px] border border-[#E3EAF5] shadow-[0_2px_12px_rgba(0,0,0,0.02)] overflow-hidden">
@@ -483,6 +775,8 @@ export default function AdminLeavePage() {
           </table>
         </div>
       </div>
+      </div>
+      )}
 
       {/* MODAL 1: ADD NEW LEAVE TYPE OPTION */}
       {isAddTypeOpen && (
@@ -787,6 +1081,178 @@ export default function AdminLeavePage() {
                   className="px-5 py-2.5 text-[13px] bg-[#1677FF] hover:bg-[#0958D9] text-white rounded-xl font-bold shadow-sm cursor-pointer"
                 >
                   Update Decision
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ADD MASTER HOLIDAY */}
+      {isAddHolidayOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] shadow-xl w-full max-w-md overflow-hidden border border-[#E3EAF5]">
+            <div className="p-6 border-b border-[#E3EAF5] flex justify-between items-center bg-[#F8FAFC]">
+              <div>
+                <h2 className="text-[18px] font-extrabold text-[#10254F]">Add Holiday to Master List</h2>
+                <p className="text-[12px] text-[#64748B] font-medium">
+                  This will be added to the selectable calendar for all members.
+                </p>
+              </div>
+              <button onClick={() => setIsAddHolidayOpen(false)} className="text-[#64748B] hover:text-[#10254F]">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newHolidayName.trim() || !newHolidayDate) {
+                  alert("Please enter holiday name and date");
+                  return;
+                }
+                const dateObj = new Date(newHolidayDate);
+                const dayName = newHolidayDay.trim() || dateObj.toLocaleDateString("en-US", { weekday: "long" });
+
+                addCompanyHoliday({
+                  name: newHolidayName.trim(),
+                  date: newHolidayDate,
+                  day: dayName,
+                });
+
+                setNewHolidayName("");
+                setNewHolidayDate("");
+                setNewHolidayDay("");
+                setIsAddHolidayOpen(false);
+              }}
+              className="p-6 space-y-4"
+            >
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Holiday Name</label>
+                <input
+                  type="text"
+                  required
+                  value={newHolidayName}
+                  onChange={(e) => setNewHolidayName(e.target.value)}
+                  placeholder="e.g. Eid-ul-Fitr, Durga Puja..."
+                  className="w-full px-3.5 py-2.5 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={newHolidayDate}
+                    onChange={(e) => {
+                      setNewHolidayDate(e.target.value);
+                      if (e.target.value) {
+                        const d = new Date(e.target.value);
+                        setNewHolidayDay(d.toLocaleDateString("en-US", { weekday: "long" }));
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Day of Week</label>
+                  <input
+                    type="text"
+                    value={newHolidayDay}
+                    onChange={(e) => setNewHolidayDay(e.target.value)}
+                    placeholder="e.g. Monday"
+                    className="w-full px-3.5 py-2.5 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-[#E3EAF5] flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddHolidayOpen(false)}
+                  className="px-5 py-2.5 text-[13px] text-[#64748B] hover:bg-gray-100 rounded-xl font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-[13px] bg-[#1677FF] hover:bg-[#0958D9] text-white rounded-xl font-bold shadow-sm cursor-pointer"
+                >
+                  Add Holiday
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: REVIEW MEMBER HOLIDAY SELECTION */}
+      {reviewingSelection && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] shadow-xl w-full max-w-md overflow-hidden border border-[#E3EAF5]">
+            <div className="p-6 border-b border-[#E3EAF5] flex justify-between items-center bg-[#F8FAFC]">
+              <div>
+                <h2 className="text-[18px] font-extrabold text-[#10254F]">Review Holiday Selection</h2>
+                <p className="text-[12px] text-[#64748B] font-medium">
+                  {reviewingSelection.member} • {reviewingSelection.selectedHolidayIds.length} Days Chosen
+                </p>
+              </div>
+              <button onClick={() => setReviewingSelection(null)} className="text-[#64748B] hover:text-[#10254F]">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const st = formData.get("status") as MemberHolidaySelection["status"];
+                updateMemberHolidaySelectionStatus(reviewingSelection.id, st, selectionRemark);
+                setReviewingSelection(null);
+              }}
+              className="p-6 space-y-4"
+            >
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
+                <select
+                  name="status"
+                  defaultValue={reviewingSelection.status}
+                  className="w-full px-3.5 py-2.5 text-[13px] font-bold text-[#10254F] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">
+                  Admin Remark / Instructions
+                </label>
+                <textarea
+                  rows={3}
+                  value={selectionRemark}
+                  onChange={(e) => setSelectionRemark(e.target.value)}
+                  placeholder="e.g. Approved your festival selections, make sure to finish prior deliveries..."
+                  className="w-full px-3.5 py-2.5 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none resize-none"
+                />
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-[#E3EAF5] flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setReviewingSelection(null)}
+                  className="px-5 py-2.5 text-[13px] text-[#64748B] hover:bg-gray-100 rounded-xl font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-[13px] bg-[#1677FF] hover:bg-[#0958D9] text-white rounded-xl font-bold shadow-sm cursor-pointer"
+                >
+                  Save Decision
                 </button>
               </div>
             </form>

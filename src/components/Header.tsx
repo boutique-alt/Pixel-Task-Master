@@ -40,12 +40,37 @@ export default function Header({
 }: HeaderProps) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [lastReadCount, setLastReadCount] = useState<number>(0);
   const { activities, currentMember, sessionUser, logout } = useCRM();
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const isMemberRoute = pathname?.startsWith("/member");
+
+  // Load last read activities count from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("ptm_notifications_read_count");
+      if (stored) {
+        setLastReadCount(parseInt(stored, 10) || 0);
+      }
+    } catch {}
+  }, []);
+
+  const unreadCount = Math.max(0, activities.length - lastReadCount);
+
+  const handleOpenNotifications = () => {
+    const nextState = !isNotifOpen;
+    setIsNotifOpen(nextState);
+    if (nextState) {
+      // Mark as read
+      setLastReadCount(activities.length);
+      try {
+        localStorage.setItem("ptm_notifications_read_count", activities.length.toString());
+      } catch {}
+    }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -138,15 +163,15 @@ export default function Header({
         {/* Notifications Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button 
-            onClick={() => setIsNotifOpen(!isNotifOpen)}
+            onClick={handleOpenNotifications}
             className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#64748B] hover:text-[#10254F] transition-colors bg-white rounded-full border border-[#E3EAF5] shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer"
             title="Notifications"
             aria-label="Notifications"
           >
             <Bell className="w-[17px] h-[17px] sm:w-[18px] sm:h-[18px]" />
-            {activities.length > 0 && (
-              <span className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 w-[18px] h-[18px] bg-[#EF4444] text-white flex items-center justify-center text-[10px] font-bold rounded-full border-2 border-white">
-                {activities.length > 9 ? '9+' : activities.length}
+            {unreadCount > 0 && (
+              <span className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 min-w-[18px] h-[18px] px-1 bg-[#EF4444] text-white flex items-center justify-center text-[10px] font-bold rounded-full border-2 border-white shadow-sm">
+                {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>
@@ -156,7 +181,7 @@ export default function Header({
               <div className="p-3.5 sm:p-4 border-b border-[#E3EAF5] bg-[#F3F6FB] flex justify-between items-center">
                 <h3 className="font-bold text-[#10254F] text-sm">Notifications</h3>
                 <span className="text-xs font-bold bg-[#1677FF]/10 text-[#1677FF] px-2.5 py-1 rounded-full">
-                  {activities.length} New
+                  {activities.length} Total
                 </span>
               </div>
               <div className="max-h-80 sm:max-h-96 overflow-y-auto">

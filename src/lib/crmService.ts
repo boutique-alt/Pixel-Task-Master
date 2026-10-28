@@ -315,6 +315,15 @@ export async function upsertLeaveRequestDb(req: LeaveRequest) {
   if (error) console.error("upsertLeaveRequestDb error:", error);
 }
 
+export async function deleteLeaveRequestDb(id: string) {
+  try {
+    const { error } = await supabase.from("leave_requests").delete().eq("id", id);
+    if (error) console.error("deleteLeaveRequestDb error:", error);
+  } catch (err) {
+    console.warn("deleteLeaveRequestDb error:", err);
+  }
+}
+
 export async function fetchLeaveTypesDb(): Promise<LeaveTypeOption[] | null> {
   const { data, error } = await supabase.from("leave_type_options").select("*");
   if (error) {
@@ -341,6 +350,15 @@ export async function upsertLeaveTypeDb(lt: LeaveTypeOption) {
     active: lt.active,
   });
   if (error) console.error("upsertLeaveTypeDb error:", error);
+}
+
+export async function deleteLeaveTypeDb(id: string) {
+  try {
+    const { error } = await supabase.from("leave_type_options").delete().eq("id", id);
+    if (error) console.error("deleteLeaveTypeDb error:", error);
+  } catch (err) {
+    console.warn("deleteLeaveTypeDb error:", err);
+  }
 }
 
 // 7. Member Bank Details
@@ -741,3 +759,106 @@ export async function deleteBroadcastAlertDb(id: string) {
     console.warn("deleteBroadcastAlertDb error:", err);
   }
 }
+
+// 17. Company Holidays
+export async function fetchCompanyHolidaysDb(): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("*")
+      .eq("category", "Company Holiday");
+    if (error) return null;
+    if (!data || data.length === 0) return null;
+
+    return data.map((d: any) => {
+      try {
+        return JSON.parse(d.description);
+      } catch {
+        return {
+          id: d.id,
+          name: d.title,
+          date: d.rule_type || "",
+          day: "",
+        };
+      }
+    });
+  } catch (err) {
+    console.warn("fetchCompanyHolidaysDb fallback:", err);
+    return null;
+  }
+}
+
+export async function upsertCompanyHolidayDb(holiday: any) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: holiday.id,
+      category: "Company Holiday",
+      title: holiday.name,
+      description: JSON.stringify(holiday),
+    });
+    if (error) console.error("upsertCompanyHolidayDb error:", error);
+  } catch (err) {
+    console.warn("upsertCompanyHolidayDb error:", err);
+  }
+}
+
+export async function deleteCompanyHolidayDb(id: string) {
+  try {
+    const { error } = await supabase.from("office_rules").delete().eq("id", id);
+    if (error) console.error("deleteCompanyHolidayDb error:", error);
+  } catch (err) {
+    console.warn("deleteCompanyHolidayDb error:", err);
+  }
+}
+
+// 18. Member Holiday Selections
+export async function fetchMemberHolidaySelectionsDb(): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("*")
+      .eq("category", "Holiday Selection");
+    if (error) return null;
+    if (!data) return [];
+
+    const selections: any[] = [];
+    for (const d of data) {
+      if (d.description) {
+        try {
+          selections.push(JSON.parse(d.description));
+        } catch {
+          // ignore error
+        }
+      }
+    }
+    return selections;
+  } catch (err) {
+    console.warn("fetchMemberHolidaySelectionsDb fallback:", err);
+    return null;
+  }
+}
+
+export async function upsertMemberHolidaySelectionDb(selection: any) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: selection.id,
+      category: "Holiday Selection",
+      title: selection.member,
+      description: JSON.stringify(selection),
+    });
+    if (error) console.error("upsertMemberHolidaySelectionDb error:", error);
+  } catch (err) {
+    console.warn("upsertMemberHolidaySelectionDb error:", err);
+  }
+}
+
+export async function deleteMemberHolidaySelectionDb(id: string) {
+  try {
+    const { error } = await supabase.from("office_rules").delete().eq("id", id);
+    if (error) console.error("deleteMemberHolidaySelectionDb error:", error);
+  } catch (err) {
+    console.warn("deleteMemberHolidaySelectionDb error:", err);
+  }
+}
+
+
