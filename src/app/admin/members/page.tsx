@@ -434,7 +434,7 @@ export default function AdminMembersPage() {
                   "Admin"
                 );
 
-                const targetUserId = targetUser?.id || "usr_" + updatedName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                const targetUserId = targetUser?.id || editingMember.id || ("usr_" + updatedName.toLowerCase().replace(/[^a-z0-9]/g, "_"));
                 await upsertAppUser({
                   id: targetUserId,
                   name: updatedName,
@@ -443,6 +443,19 @@ export default function AdminMembersPage() {
                   role: updatedSystemRole,
                   status: updatedStatus,
                 });
+
+                // Also update by slug id in case user has dual IDs in cloud
+                const slugId = "usr_" + updatedName.toLowerCase().replace(/[^a-z0-9]/g, "_");
+                if (slugId !== targetUserId) {
+                  await upsertAppUser({
+                    id: slugId,
+                    name: updatedName,
+                    phone: updatedPhone,
+                    password: updatedPass || undefined,
+                    role: updatedSystemRole,
+                    status: updatedStatus,
+                  });
+                }
 
                 // Clear any cached credentials/users
                 setEditingMember(null);

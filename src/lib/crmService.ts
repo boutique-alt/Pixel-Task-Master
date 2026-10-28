@@ -24,15 +24,34 @@ export async function fetchMembersDb(): Promise<Member[] | null> {
     console.error("fetchMembersDb error:", error);
     return null;
   }
-  return data.map((d: any) => ({
-    id: d.id,
-    name: d.name,
-    email: d.email,
-    phone: d.phone,
-    role: d.role,
-    systemRole: d.system_role || d.systemRole || (d.role?.toLowerCase() === "coordinator" ? "coordinator" : "member"),
-    status: d.status,
-  }));
+
+  // Also fetch app_users to reliably get their assigned system role ('coordinator' or 'member')
+  let appUsersMap: Record<string, string> = {};
+  try {
+    const { data: userRoles } = await supabase.from("app_users").select("name, phone, role");
+    if (userRoles) {
+      for (const u of userRoles) {
+        if (u.name) appUsersMap[u.name.trim().toLowerCase()] = u.role;
+        if (u.phone) appUsersMap[u.phone.trim()] = u.role;
+      }
+    }
+  } catch {}
+
+  return data.map((d: any) => {
+    const nameKey = (d.name || "").trim().toLowerCase();
+    const phoneKey = (d.phone || "").trim();
+    const cloudRole = appUsersMap[nameKey] || appUsersMap[phoneKey];
+
+    return {
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      phone: d.phone,
+      role: d.role,
+      systemRole: (cloudRole === "coordinator" || d.system_role === "coordinator" || d.systemRole === "coordinator" || d.role?.toLowerCase() === "coordinator") ? "coordinator" : "member",
+      status: d.status,
+    };
+  });
 }
 
 export async function upsertMemberDb(member: Member) {
