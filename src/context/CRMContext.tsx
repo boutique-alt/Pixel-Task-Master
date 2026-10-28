@@ -926,12 +926,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  // Periodic background check for instant real-time alerts from admin
+  // Periodic background check for instant real-time alerts & live tasks sync across all members & admin
   useEffect(() => {
     if (!isHydrated) return;
     const interval = setInterval(async () => {
       try {
-        const cloudAlerts = await fetchBroadcastAlertsDb();
+        const [cloudAlerts, cloudTasks] = await Promise.all([
+          fetchBroadcastAlertsDb(),
+          fetchTasksDb(),
+        ]);
         if (cloudAlerts) {
           setBroadcastAlerts((prev) => {
             if (JSON.stringify(prev) !== JSON.stringify(cloudAlerts)) {
@@ -940,10 +943,26 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             return prev;
           });
         }
+        if (cloudTasks !== null) {
+          setClients((prev) => {
+            // Compare IDs to see if length or items changed
+            const prevIds = prev.map((p) => p.id).sort().join(",");
+            const cloudIds = cloudTasks.map((c) => c.id).sort().join(",");
+            const isDifferent = prevIds !== cloudIds || JSON.stringify(prev) !== JSON.stringify(cloudTasks);
+
+            if (isDifferent) {
+              try {
+                localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(cloudTasks));
+              } catch {}
+              return cloudTasks;
+            }
+            return prev;
+          });
+        }
       } catch {
         // silent fallback
       }
-    }, 8000);
+    }, 6000);
     return () => clearInterval(interval);
   }, [isHydrated]);
 
@@ -1163,7 +1182,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     const client = clients.find(c => c.id === id);
     if (client) addActivity(`${adminName} deleted task for ${client.name}`, "status");
     deleteTaskDb(id);
-    setClients(prev => prev.filter(c => c.id !== id));
+    setClients(prev => {
+      const updated = prev.filter(c => c.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
   };
 
   const updateClient = (id: string, updatedData: Partial<Client>, adminName: string) => {
