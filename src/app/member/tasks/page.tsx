@@ -47,11 +47,12 @@ const PRESET_REMARKS = [
 export default function MemberTasks() {
   const { clients, currentMember, updateStatus, updateComment } = useCRM();
   
-  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "done">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [today, setToday] = useState("");
+  const [tomorrow, setTomorrow] = useState("");
   const [copiedEOD, setCopiedEOD] = useState(false);
   const [saveStatus, setSaveStatus] = useState<Record<string, "saving" | "saved" | null>>({});
   const [confettiActive, setConfettiActive] = useState(false);
@@ -62,6 +63,11 @@ export default function MemberTasks() {
     const todayStr = getLocalDateString();
     setToday(todayStr);
     setSelectedDate(todayStr);
+
+    const tmrw = new Date();
+    tmrw.setDate(tmrw.getDate() + 1);
+    const tmrwStr = getLocalDateString(tmrw);
+    setTomorrow(tmrwStr);
   }, []);
 
   const activeMemberName = currentMember || "Hasibul Pailan";
@@ -80,16 +86,22 @@ export default function MemberTasks() {
   // Tasks filtered by active date filter (defaults to today)
   const dateFilteredTasks = useMemo(() => {
     if (dateFilterMode === "all") return myTasks;
-    const targetDate = dateFilterMode === "today" ? today : selectedDate;
+    const targetDate = dateFilterMode === "today" ? today : dateFilterMode === "tomorrow" ? tomorrow : selectedDate;
     if (!targetDate) return myTasks;
     return myTasks.filter(t => isTaskOnDate(t, targetDate));
-  }, [myTasks, dateFilterMode, today, selectedDate]);
+  }, [myTasks, dateFilterMode, today, tomorrow, selectedDate]);
 
   // Today-only count for badge
   const todayTasksCount = useMemo(() => {
     if (!today) return 0;
     return myTasks.filter(t => isTaskOnDate(t, today)).length;
   }, [myTasks, today]);
+
+  // Tomorrow-only count for badge
+  const tomorrowTasksCount = useMemo(() => {
+    if (!tomorrow) return 0;
+    return myTasks.filter(t => isTaskOnDate(t, tomorrow)).length;
+  }, [myTasks, tomorrow]);
 
   // Keep local remarks synced with incoming tasks
   useEffect(() => {
@@ -272,7 +284,9 @@ export default function MemberTasks() {
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         todayDate={today}
+        tomorrowDate={tomorrow}
         todayTasksCount={todayTasksCount}
+        tomorrowTasksCount={tomorrowTasksCount}
         totalAllTasksCount={myTasks.length}
       />
 
@@ -587,16 +601,16 @@ export default function MemberTasks() {
                       </td>
 
                       {/* Coordinator Update / Instruction */}
-                      <td className="py-4 px-4">
-                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] p-2.5 rounded-xl group-hover:border-[#CBD5E1] transition-colors">
+                      <td className="py-4 px-4 min-w-[280px] max-w-[420px]">
+                        <div className="bg-[#F8FAFC] border border-[#E2E8F0] p-3 rounded-xl group-hover:border-[#CBD5E1] transition-colors">
                           <div className="flex items-start gap-2">
-                            <MessageCircle size={14} className="text-[#1677FF] shrink-0 mt-0.5" />
+                            <MessageCircle size={15} className="text-[#1677FF] shrink-0 mt-0.5" />
                             <div className="flex-1">
-                              <p className="text-[12px] font-bold text-[#1E293B] leading-relaxed">
+                              <p className="text-[13px] font-bold text-[#1E293B] leading-relaxed break-words whitespace-normal">
                                 {t.taskDetails || "No specific instructions provided yet."}
                               </p>
                               {t.endDate && (
-                                <p className="text-[10px] font-extrabold text-[#64748B] mt-1 flex items-center gap-1">
+                                <p className="text-[10px] font-extrabold text-[#64748B] mt-1.5 flex items-center gap-1">
                                   <Calendar size={11} /> Deadline: {t.endDate}
                                 </p>
                               )}

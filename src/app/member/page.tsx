@@ -11,7 +11,7 @@ import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 export default function MemberDashboard() {
   const { clients, currentMember, leaveTypes, leaveRequests, attendanceRecords, attendanceConfig, hrNotices, updateStatus, updateComment } = useCRM();
   
-  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [progressFilter, setProgressFilter] = useState("today");

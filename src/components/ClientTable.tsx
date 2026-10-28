@@ -87,11 +87,8 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
                     </div>
                   </td>
                   <td className="py-4 px-2">
-                    <div className="flex flex-col gap-1 items-start">
+                    <div className="flex flex-col gap-1 items-start min-w-[200px] max-w-[340px]">
                       <div className="flex gap-1.5 items-center flex-wrap">
-                        <span className="px-1.5 py-0.5 bg-[#F4F7FC] text-[#64748B] text-[9px] rounded font-bold uppercase tracking-wider border border-[#E3EBF5]">
-                          {c.category}
-                        </span>
                         <span className={`px-1.5 py-0.5 text-[9px] rounded font-bold uppercase tracking-wider border ${c.taskType === 'One-Time' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-[#1677FF]/10 text-[#1677FF] border-[#1677FF]/20'}`}>
                           {c.taskType || "Regular"}
                         </span>
@@ -102,10 +99,9 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
                         )}
                       </div>
                       {c.taskDetails ? (
-                        <>
-                          <p className="text-[13px] font-bold text-[#14233F] mt-1 line-clamp-1" title={c.taskDetails}>{c.taskDetails}</p>
-                          <p className="text-[11px] font-medium text-[#64748B] line-clamp-1">Complete setup and share for review</p>
-                        </>
+                        <p className="text-[13px] font-bold text-[#14233F] mt-1 break-words whitespace-normal leading-snug">
+                          {c.taskDetails}
+                        </p>
                       ) : (
                         <p className="text-[13px] font-bold text-[#14233F] mt-1">-</p>
                       )}

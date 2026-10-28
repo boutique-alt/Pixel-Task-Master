@@ -32,7 +32,7 @@ export default function CoordinatorTasksPage() {
     sessionUser
   } = useCRM();
 
-  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [memberFilter, setMemberFilter] = useState("all");

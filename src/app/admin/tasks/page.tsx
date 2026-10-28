@@ -50,13 +50,14 @@ export default function AdminTasksPage() {
 
   const [activeTab, setActiveTab] = useState<"tasks" | "clients" | "members">("tasks");
 
-  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [memberFilter, setMemberFilter] = useState("all");
   const [viewFilter, setViewFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [today, setToday] = useState("");
+  const [tomorrow, setTomorrow] = useState("");
 
   // Task Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -78,6 +79,11 @@ export default function AdminTasksPage() {
     const todayStr = getLocalDateString();
     setToday(todayStr);
     setSelectedDate(todayStr);
+
+    const tmrw = new Date();
+    tmrw.setDate(tmrw.getDate() + 1);
+    const tmrwStr = getLocalDateString(tmrw);
+    setTomorrow(tmrwStr);
   }, []);
 
   const memberNames = members.map((m) => m.name);
@@ -85,13 +91,17 @@ export default function AdminTasksPage() {
   // Filter tasks based on active date filter (defaults to today)
   const dateFilteredTasks = clients.filter((t) => {
     if (dateFilterMode === "all") return true;
-    const targetDate = dateFilterMode === "today" ? today : selectedDate;
+    const targetDate = dateFilterMode === "today" ? today : dateFilterMode === "tomorrow" ? tomorrow : selectedDate;
     if (!targetDate) return true;
     return isTaskOnDate(t, targetDate);
   });
 
   const todayTasksCount = today
     ? clients.filter((t) => isTaskOnDate(t, today)).length
+    : 0;
+
+  const tomorrowTasksCount = tomorrow
+    ? clients.filter((t) => isTaskOnDate(t, tomorrow)).length
     : 0;
 
   // Filter tasks based on selected member for stats
@@ -434,66 +444,81 @@ export default function AdminTasksPage() {
         {/* ================= TAB 1: TASKS CRUD ================= */}
         {activeTab === "tasks" && (
           <div>
-            <div className="p-6 border-b border-[#E3EAF5] flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-extrabold text-[#10254F] text-[18px] tracking-tight">Master Task List</h3>
-                <p className="text-[13px] text-[#64748B] mt-0.5">
-                  Create, edit, delete, or reassign tasks. Changes sync live with the assigned member.
-                </p>
+            <div className="p-4 sm:p-6 border-b border-[#E3EAF5] flex flex-col gap-4">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-extrabold text-[#10254F] text-[18px] tracking-tight">Master Task List</h3>
+                  <p className="text-[13px] text-[#64748B] mt-0.5">
+                    Create, edit, delete, or reassign tasks. Changes sync live with the assigned member.
+                  </p>
+                </div>
+
+                {/* Task Filters */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Member Filter */}
+                  <div className="relative">
+                    <select
+                      value={memberFilter}
+                      onChange={(e) => setMemberFilter(e.target.value)}
+                      className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                    >
+                      <option value="all">All Members</option>
+                      {memberNames.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                    <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1677FF]" size={15} />
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </div>
+
+                  {/* View / Type Filter */}
+                  <div className="relative">
+                    <select
+                      value={viewFilter}
+                      onChange={(e) => setViewFilter(e.target.value)}
+                      className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                    >
+                      <option value="all">All Tasks</option>
+                      <option value="daily">Due Today / Overdue</option>
+                      <option value="overdue">Overdue Only</option>
+                      <option value="regular">Regular Tasks</option>
+                      <option value="onetime">One-Time Tasks</option>
+                    </select>
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="relative">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="Pending">Pending</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Done">Done</option>
+                      <option value="Can't Do">Can&apos;t Do</option>
+                    </select>
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </div>
+                </div>
               </div>
 
-              {/* Task Filters */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Member Filter */}
-                <div className="relative">
-                  <select
-                    value={memberFilter}
-                    onChange={(e) => setMemberFilter(e.target.value)}
-                    className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                  >
-                    <option value="all">All Members</option>
-                    {memberNames.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                  <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1677FF]" size={15} />
-                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </div>
-
-                {/* View / Type Filter */}
-                <div className="relative">
-                  <select
-                    value={viewFilter}
-                    onChange={(e) => setViewFilter(e.target.value)}
-                    className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                  >
-                    <option value="all">All Tasks</option>
-                    <option value="daily">Due Today / Overdue</option>
-                    <option value="overdue">Overdue Only</option>
-                    <option value="regular">Regular Tasks</option>
-                    <option value="onetime">One-Time Tasks</option>
-                  </select>
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </div>
-
-                {/* Status Filter */}
-                <div className="relative">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Done">Done</option>
-                    <option value="Can't Do">Can&apos;t Do</option>
-                  </select>
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </div>
-              </div>
+              {/* Date Filter Bar for Admin */}
+              <TaskDateFilterBar
+                dateFilterMode={dateFilterMode}
+                onModeChange={setDateFilterMode}
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                todayDate={today}
+                tomorrowDate={tomorrow}
+                todayTasksCount={todayTasksCount}
+                tomorrowTasksCount={tomorrowTasksCount}
+                totalAllTasksCount={clients.length}
+              />
             </div>
 
             <ClientTable

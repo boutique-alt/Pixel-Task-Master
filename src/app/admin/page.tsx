@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   const { clients, directoryClients, members, assignMember, addClient, deleteClient, updateClient, updateStatus, dailyReports } = useCRM();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [dateFilterMode, setDateFilterMode] = useState<"today" | "custom" | "all">("today");
+  const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState("");
   const [today, setToday] = useState("");
   const [addClientName, setAddClientName] = useState("");
