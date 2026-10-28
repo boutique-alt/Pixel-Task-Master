@@ -90,7 +90,7 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
         {/* Navigation Links */}
         <nav className="flex-1 px-4 space-y-1 mt-3 relative z-10 overflow-y-auto">
           {isCoordinator ? (
-            /* Coordinator: Task Assignment & Check in / Out */
+            /* Coordinator: Task Assignment, Check in / Out, Leave apply, HR rules, Bank details */
             <>
               <Link 
                 href="/coordinator" 
@@ -107,6 +107,30 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
               >
                 <Clock size={20} className={pathname.includes('/coordinator/attendance') ? '' : 'opacity-70'} />
                 <span className="text-[14px]">Check in / Out &amp; Report</span>
+              </Link>
+              <Link 
+                href="/coordinator/leave" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/coordinator/leave') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <Calendar size={20} className={pathname.includes('/coordinator/leave') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Leave apply</span>
+              </Link>
+              <Link 
+                href="/coordinator/hr-rules" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/coordinator/hr-rules') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <BookOpen size={20} className={pathname.includes('/coordinator/hr-rules') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">HR rules</span>
+              </Link>
+              <Link 
+                href="/coordinator/bank-details" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/coordinator/bank-details') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <Landmark size={20} className={pathname.includes('/coordinator/bank-details') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Bank details</span>
               </Link>
             </>
           ) : (
