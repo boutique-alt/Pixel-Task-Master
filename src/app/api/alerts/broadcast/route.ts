@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { id, title, message, priority, targetType, targetMember, url } = body || {};
+    const { id, title, message, priority, targetType, targetMember, sender, url } = body || {};
 
     if (!message) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -70,12 +70,24 @@ export async function POST(req: NextRequest) {
         const subData = JSON.parse(row.description);
         if (!subData.endpoint || !subData.keys) return;
 
-        // If target is individual member, only push to that member
-        if (
+        const subMemberName = (subData.memberName || "").trim().toLowerCase();
+        const subRole = (subData.role || "").trim().toLowerCase();
+
+        // Rule A: Do NOT send push to the sender themselves
+        if (sender && subMemberName && subMemberName === sender.trim().toLowerCase()) {
+          return;
+        }
+
+        // Rule B: Target filtering
+        if (targetType === "admin_coordinator") {
+          const isAdminOrCoordinator = subRole === "admin" || subRole === "coordinator" || subMemberName === "admin";
+          if (!isAdminOrCoordinator) {
+            return;
+          }
+        } else if (
           targetType === "individual" &&
           targetMember &&
-          subData.memberName &&
-          subData.memberName.trim().toLowerCase() !== targetMember.trim().toLowerCase()
+          subMemberName !== targetMember.trim().toLowerCase()
         ) {
           return;
         }

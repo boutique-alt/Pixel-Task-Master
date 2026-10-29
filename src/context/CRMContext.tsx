@@ -252,8 +252,9 @@ export type BroadcastAlert = {
   id: string; // e.g. "alert_1729760000000"
   title: string; // বিষয়
   message: string; // বিস্তারিত মেসেজ
-  targetType: "all" | "individual";
+  targetType: "all" | "individual" | "admin_coordinator";
   targetMember?: string; // e.g. "Rahim"
+  sender?: string; // name of user who triggered the alert (to prevent self-notification)
   priority: "normal" | "urgent";
   createdAt: string; // ISO string
   createdTimeDisplay: string; // "02:30 PM"
@@ -1073,14 +1074,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (status === "Can't Do") received = "0";
       upsertTaskDb({ ...target, status, received });
 
-      // Notify Admin if member updated
+      // Notify Admin and Coordinator when a member updates status (exclude self)
       const isMember = target.member && user.toLowerCase() === target.member.toLowerCase();
       if (isMember) {
         sendBroadcastAlert({
           title: `Task Status Update: ${target.name}`,
           message: `${user} updated status to "${status}" on task "${target.name}".`,
           priority: "normal",
-          targetType: "all",
+          targetType: "admin_coordinator",
+          sender: user,
         }).catch(() => {});
       }
     }
@@ -1101,14 +1103,15 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       addActivity(`${user} updated comment on ${target.name}: "${comment || "Cleared"}"`, "comment");
       upsertTaskDb({ ...target, comments: comment });
 
-      // Notify Admin if member updated
+      // Notify Admin and Coordinator when a member comments (exclude self)
       const isMember = target.member && user.toLowerCase() === target.member.toLowerCase();
       if (isMember) {
         sendBroadcastAlert({
           title: `Task Comment from ${user}`,
           message: `${user} commented on "${target.name}": "${comment}"`,
           priority: "normal",
-          targetType: "all",
+          targetType: "admin_coordinator",
+          sender: user,
         }).catch(() => {});
       }
     }
@@ -1134,6 +1137,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           priority: "normal",
           targetType: "individual",
           targetMember: memberName,
+          sender: adminName,
         }).catch(() => {});
       }
     }
@@ -1959,8 +1963,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           priority: newAlert.priority,
           targetType: newAlert.targetType,
           targetMember: newAlert.targetMember,
+          sender: newAlert.sender,
           createdAt: newAlert.createdAt,
-          url: newAlert.targetType === "individual" ? "/member" : "/",
+          url: newAlert.targetType === "individual" ? "/member" : (newAlert.targetType === "admin_coordinator" ? "/admin" : "/"),
         }),
       }).catch((err) => console.warn("Background push dispatch error:", err));
     } catch (e) {
@@ -2090,12 +2095,13 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     upsertMemberHolidaySelectionDb(updatedSelection);
     addActivity(`${cleanMember} updated their chosen holiday list (${selectedHolidayIds.length} days)`, "status");
 
-    // Notification with music to Admin
+    // Notification with music to Admin & Coordinator
     sendBroadcastAlert({
       title: "Holiday Request Update",
       message: `${cleanMember} submitted / updated their selected holiday list (${selectedHolidayIds.length} days). Please review & approve.`,
       priority: "normal",
-      targetType: "all",
+      targetType: "admin_coordinator",
+      sender: cleanMember,
     }).catch(() => {});
   };
 

@@ -99,7 +99,19 @@ export default function GlobalAlertListener() {
     if (!broadcastAlerts || broadcastAlerts.length === 0 || !activeName) return;
 
     // Filter alerts meant for this user
+    const userRole = sessionUser?.role || (activeName.toLowerCase() === "admin" ? "admin" : "member");
+    const isAdminOrCoordinator = userRole === "admin" || userRole === "coordinator";
+
     const userAlerts = broadcastAlerts.filter((alert) => {
+      // 1. NEVER notify the sender themselves (no self-notification music/popup)
+      if (alert.sender && alert.sender.trim().toLowerCase() === activeName.toLowerCase()) {
+        return false;
+      }
+
+      // 2. Target type check
+      if (alert.targetType === "admin_coordinator") {
+        return isAdminOrCoordinator;
+      }
       if (alert.targetType === "all") return true;
       if (alert.targetType === "individual" && alert.targetMember) {
         return alert.targetMember.trim().toLowerCase() === activeName.toLowerCase();
