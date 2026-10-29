@@ -57,11 +57,12 @@ export default function CoordinatorTasksPage() {
     setSelectedDate(todayStr);
   }, []);
 
-  // Filter out coordinator accounts from member assign dropdown so tasks go strictly to team members
-  const assignableMembers = members.filter(
-    (m) => m.systemRole !== "coordinator" && m.role?.toLowerCase() !== "coordinator"
-  );
-  const memberNames = assignableMembers.length > 0 ? assignableMembers.map((m) => m.name) : members.map((m) => m.name);
+  // Coordinator can assign to team members AND to herself
+  const assignableMembers = members;
+  const memberNames = assignableMembers.map((m) => m.name);
+  if (coordinatorName && !memberNames.some((n) => n.toLowerCase() === coordinatorName.toLowerCase())) {
+    memberNames.unshift(coordinatorName);
+  }
 
   // Filter tasks based on active date filter (defaults to today)
   const dateFilteredTasks = clients.filter((t) => {
