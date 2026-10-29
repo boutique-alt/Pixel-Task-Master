@@ -13,11 +13,13 @@ import {
   UserCheck,
   RefreshCw,
   Building2,
-  Phone
+  Phone,
+  FileSpreadsheet
 } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
 import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
+import ExcelTaskImportModal from "@/components/ExcelTaskImportModal";
 
 export default function CoordinatorTasksPage() {
   const { 
@@ -42,6 +44,7 @@ export default function CoordinatorTasksPage() {
 
   // Add / Edit Task Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
   // Pre-fill state for Add Task modal
@@ -148,17 +151,27 @@ export default function CoordinatorTasksPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setTaskClientName("");
-            setTaskClientPhone("");
-            setTaskClientCategory("Website Creation");
-            setIsAddModalOpen(true);
-          }}
-          className="flex items-center gap-2 bg-[#1677FF] hover:bg-[#0958D9] text-white px-5 py-3 rounded-xl text-[13px] font-bold transition-all shadow-sm shrink-0 cursor-pointer"
-        >
-          <Plus size={16} /> Assign New Task
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => setIsExcelModalOpen(true)}
+            className="flex items-center gap-2 bg-[#10B981] hover:bg-[#059669] text-white px-4 py-3 rounded-xl text-[13px] font-bold transition-all shadow-sm cursor-pointer"
+            title="Upload daily Excel sheet to automatically assign tasks"
+          >
+            <FileSpreadsheet size={16} /> Import Excel
+          </button>
+
+          <button
+            onClick={() => {
+              setTaskClientName("");
+              setTaskClientPhone("");
+              setTaskClientCategory("Website Creation");
+              setIsAddModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-[#1677FF] hover:bg-[#0958D9] text-white px-5 py-3 rounded-xl text-[13px] font-bold transition-all shadow-sm cursor-pointer"
+          >
+            <Plus size={16} /> Assign New Task
+          </button>
+        </div>
       </div>
 
       {/* Quick Summary Stat Cards */}
@@ -588,6 +601,11 @@ export default function CoordinatorTasksPage() {
           </div>
         </div>
       )}
+      {/* Excel Task Import Modal */}
+      <ExcelTaskImportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+      />
     </div>
   );
 }

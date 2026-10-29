@@ -20,11 +20,13 @@ import {
   Trash2,
   Phone,
   Mail,
-  Building2
+  Building2,
+  FileSpreadsheet
 } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
 import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
+import ExcelTaskImportModal from "@/components/ExcelTaskImportModal";
 
 export default function AdminTasksPage() {
   const { 
@@ -61,6 +63,7 @@ export default function AdminTasksPage() {
 
   // Task Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   // Pre-fill state for Add Task modal when selecting an existing client
   const [taskClientName, setTaskClientName] = useState("");
@@ -217,6 +220,14 @@ export default function AdminTasksPage() {
 
         {/* Quick CRUD Buttons (Slim 1-Line - No Icons) */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsExcelModalOpen(true)}
+            className="bg-[#10B981] hover:bg-[#059669] text-white px-3.5 py-2 rounded-xl text-xs sm:text-[13px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+            title="Import daily tasks directly from Excel"
+          >
+            <FileSpreadsheet size={15} /> Import Excel
+          </button>
           <button
             type="button"
             onClick={() => setIsAddMemberModalOpen(true)}
@@ -1432,6 +1443,11 @@ export default function AdminTasksPage() {
           </div>
         </div>
       )}
+      {/* Excel Task Import Modal */}
+      <ExcelTaskImportModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+      />
     </div>
   );
 }
