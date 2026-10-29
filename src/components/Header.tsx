@@ -25,6 +25,7 @@ const ROUTE_INFO: Record<string, { title: string; subtitle: string }> = {
   "/admin/settings": { title: "Settings", subtitle: "System preferences and configurations" },
   "/coordinator": { title: "Task Assignment & Updates", subtitle: "Assign tasks to members and monitor progress" },
   "/coordinator/tasks": { title: "Task Assignment & Updates", subtitle: "Assign tasks to members and monitor progress" },
+  "/coordinator/my-tasks": { title: "My Tasks", subtitle: "View and update your personal assigned tasks & status" },
   "/coordinator/attendance": { title: "Check in / Out & Report", subtitle: "Daily punch in, punch out & working hours" },
   "/coordinator/leave": { title: "Apply for Leave", subtitle: "Submit and track your leave requests & chosen holidays" },
   "/coordinator/hr-rules": { title: "Office Rules & HR", subtitle: "Company guidelines and announcements" },

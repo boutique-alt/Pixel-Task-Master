@@ -7,6 +7,7 @@ import { useCRM } from "@/context/CRMContext";
 import { 
   LayoutDashboard, 
   ListTodo, 
+  CheckSquare,
   Calendar, 
   Clock, 
   BookOpen, 
@@ -90,7 +91,7 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
         {/* Navigation Links */}
         <nav className="flex-1 px-4 space-y-1 mt-3 relative z-10 overflow-y-auto">
           {isCoordinator ? (
-            /* Coordinator: Task Assignment, Check in / Out, Leave apply, HR rules, Bank details */
+            /* Coordinator: Task Assignment, My Tasks, Check in / Out, Leave apply, HR rules, Bank details */
             <>
               <Link 
                 href="/coordinator" 
@@ -99,6 +100,14 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
               >
                 <ListTodo size={20} className={pathname === '/coordinator' ? '' : 'opacity-70'} />
                 <span className="text-[14px]">Task Assignment</span>
+              </Link>
+              <Link 
+                href="/coordinator/my-tasks" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/coordinator/my-tasks') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <CheckSquare size={20} className={pathname.includes('/coordinator/my-tasks') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">My Tasks</span>
               </Link>
               <Link 
                 href="/coordinator/attendance" 

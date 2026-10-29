@@ -734,7 +734,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const activeSession = getSessionUser();
       if (activeSession) {
         setSessionUserState(activeSession);
-        if (activeSession.role === "member") {
+        if (activeSession.role === "member" || activeSession.role === "coordinator") {
           setCurrentMember(activeSession.name);
         } else if (savedCurrentMember) {
           setCurrentMember(savedCurrentMember);

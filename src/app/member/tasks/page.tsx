@@ -45,7 +45,7 @@ const PRESET_REMARKS = [
 ];
 
 export default function MemberTasks() {
-  const { clients, currentMember, updateStatus, updateComment } = useCRM();
+  const { clients, currentMember, sessionUser, updateStatus, updateComment } = useCRM();
   
   const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState<string>("");
@@ -70,7 +70,7 @@ export default function MemberTasks() {
     setTomorrow(tmrwStr);
   }, []);
 
-  const activeMemberName = currentMember || "Hasibul Pailan";
+  const activeMemberName = sessionUser?.name || currentMember || "Hasibul Pailan";
 
   // Filter tasks belonging to current logged-in member
   const myTasks = useMemo(() => {
