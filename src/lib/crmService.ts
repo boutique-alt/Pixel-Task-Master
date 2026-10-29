@@ -487,7 +487,9 @@ export function isRealOfficeRule(d: any): boolean {
     id.startsWith("sys_") ||
     id.startsWith("psub_") ||
     id.startsWith("rep_") ||
-    id.startsWith("alert_")
+    id.startsWith("alert_") ||
+    id.startsWith("hol_") ||
+    id.startsWith("hols_")
   ) {
     return false;
   }
@@ -497,7 +499,9 @@ export function isRealOfficeRule(d: any): boolean {
     cat === "Push_Subscription" ||
     cat === "Daily Report" ||
     cat === "Broadcast Alert" ||
-    cat === "Timing & Attendance Config"
+    cat === "Timing & Attendance Config" ||
+    cat === "Company Holiday" ||
+    cat === "Holiday Selection"
   ) {
     return false;
   }
@@ -511,7 +515,11 @@ export function isRealOfficeRule(d: any): boolean {
         parsed.completedTasks ||
         parsed.acknowledgedBy ||
         parsed.graceTime ||
-        parsed.targetType
+        parsed.targetType ||
+        parsed.selectedHolidayIds ||
+        parsed.holidayIds ||
+        parsed.date ||
+        parsed.applicableYear
       ) {
         return false;
       }
