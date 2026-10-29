@@ -228,14 +228,12 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
                   {(isAdmin || isCoordinator) && (
                     <td className="py-4 px-3 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => onEdit?.(c)} className="p-1.5 text-[#1677FF] hover:bg-[#1677FF]/10 rounded-md transition-colors" title="Edit Task">
+                        <button onClick={() => onEdit?.(c)} className="p-1.5 text-[#1677FF] hover:bg-[#1677FF]/10 rounded-md transition-colors cursor-pointer" title="Edit Task">
                           <Edit size={16} />
                         </button>
-                        {isAdmin && (
-                          <button onClick={() => onDelete?.(c.id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="Delete Task">
-                            <Trash2 size={16} />
-                          </button>
-                        )}
+                        <button onClick={() => onDelete?.(c.id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors cursor-pointer" title="Delete Task">
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   )}

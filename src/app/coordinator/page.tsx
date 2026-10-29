@@ -28,6 +28,7 @@ export default function CoordinatorTasksPage() {
     members, 
     addClient, 
     updateClient, 
+    deleteClient,
     assignMember, 
     updateStatus,
     currentMember,
@@ -290,6 +291,11 @@ export default function CoordinatorTasksPage() {
           onAssignChange={(id, newMember) => assignMember(id, newMember, `${coordinatorName} (Coordinator)`)}
           onStatusChange={(id, newStatus) => updateStatus(id, newStatus, `${coordinatorName} (Coordinator)`)}
           onEdit={(task) => setEditingClient(task)}
+          onDelete={(id) => {
+            if (window.confirm("Are you sure you want to delete this task?")) {
+              deleteClient(id, `${coordinatorName} (Coordinator)`);
+            }
+          }}
         />
       </div>
 
