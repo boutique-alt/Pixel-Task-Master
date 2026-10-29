@@ -746,19 +746,26 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       }
 
       // 3. Detect live public IP for Panda WiFi verification using fast multi-provider race
-      Promise.any([
-        fetch("https://api.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
-        fetch("https://api64.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
-        fetch("https://ipinfo.io/json").then((r) => r.json()).then((d) => d.ip),
-      ])
-        .then((ip) => {
-          if (ip) {
-            setCurrentNetworkIp(String(ip).trim());
-          }
-        })
-        .catch(() => {
-          setCurrentNetworkIp("");
-        });
+      const detectIp = () => {
+        Promise.any([
+          fetch("https://api.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
+          fetch("https://api64.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
+          fetch("https://ipinfo.io/json").then((r) => r.json()).then((d) => d.ip),
+          fetch("https://icanhazip.com").then((r) => r.text()).then((t) => t.trim()),
+        ])
+          .then((ip) => {
+            if (ip) {
+              setCurrentNetworkIp(String(ip).trim());
+            }
+          })
+          .catch(() => {});
+      };
+
+      detectIp();
+      // Periodically refresh IP every 60 seconds and on window focus so WiFi switch immediately triggers
+      const ipInterval = setInterval(detectIp, 60000);
+      window.addEventListener("focus", detectIp);
+      window.addEventListener("online", detectIp);
 
       // 4. Live fetch from Supabase Cloud Database
       (async () => {
@@ -1445,9 +1452,14 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     setAuthorizedDevices((prev) => prev.filter((d) => d.id !== id));
   };
 
-  const checkInMember = (memberName: string, verifiedVia: string, lateReason?: string) => {
+  const checkInMember = (
+    memberName: string, 
+    verifiedVia: string, 
+    lateReason?: string,
+    customTimestamp?: number
+  ) => {
     if (!memberName || memberName === "all" || memberName.toLowerCase() === "admin") return;
-    const now = new Date();
+    const now = customTimestamp ? new Date(customTimestamp) : new Date();
     const todayStr = getLocalDateString(now);
 
     const timeString = now.toLocaleTimeString("en-US", {
@@ -1512,20 +1524,19 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   // Auto Check-In on 1st WiFi OR GPS + Laptop connection of the day
   useEffect(() => {
-    if (!isHydrated || !isCloudSynced || !attendanceConfig.autoCheckInOnOpen) return;
+    if (!isHydrated || !attendanceConfig.autoCheckInOnOpen) return;
 
-    // CRITICAL: Only logged-in members (role === "member") can be checked in!
-    // Never auto check-in Admin, and never fall back to "Rahim" when admin is logged in!
-    if (!sessionUser || sessionUser.role !== "member" || !sessionUser.name) return;
+    // Both Members and Coordinators should be automatically checked in
+    const isCheckinRole = sessionUser?.role === "member" || sessionUser?.role === "coordinator";
+    if (!sessionUser || !isCheckinRole || !sessionUser.name) return;
     const activeMember = sessionUser.name.trim();
     if (!activeMember || activeMember.toLowerCase() === "admin") return;
 
     const now = new Date();
     const currentHour = now.getHours();
 
-    // CRITICAL GUARD: Only auto check-in during legitimate office hours (8:00 AM to 8:00 PM).
-    // If a laptop is left in the office overnight, it will NOT auto-checkin at 5:30 AM or midnight!
-    if (currentHour < 8 || currentHour >= 20) return;
+    // Legitimate office hours check (7:30 AM to 8:30 PM)
+    if (currentHour < 7 || (currentHour === 7 && now.getMinutes() < 30) || currentHour >= 21) return;
 
     const todayStr = getLocalDateString(now);
 
@@ -1546,13 +1557,29 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
     if (!laptopOk) return;
 
+    // Compute device startup/online timestamp (if available via performance.timeOrigin)
+    // If user opened laptop at 9:15 AM but only opened browser tab at 10:00 AM,
+    // performance.timeOrigin captures the actual session start time today!
+    let effectiveTimestamp = now.getTime();
+    try {
+      if (typeof window !== "undefined" && window.performance && window.performance.timeOrigin) {
+        const perfOrigin = Math.round(window.performance.timeOrigin);
+        const originDate = new Date(perfOrigin);
+        if (getLocalDateString(originDate) === todayStr && originDate.getHours() >= 8 && originDate.getTime() < now.getTime()) {
+          effectiveTimestamp = perfOrigin;
+        }
+      }
+    } catch {
+      // fallback to current time
+    }
+
     const wifiOk = isWifiIpMatched(currentNetworkIp, attendanceConfig.registeredWifiIp);
 
     if (wifiOk) {
       const viaLabel = `${attendanceConfig.wifiName || "Panda WiFi"}${
         attendanceConfig.requireAuthorizedLaptop ? " + Office Laptop" : ""
       } (Auto)`;
-      checkInMember(activeMember, viaLabel);
+      checkInMember(activeMember, viaLabel, undefined, effectiveTimestamp);
       return;
     }
 
@@ -1578,7 +1605,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
         if (dist <= (attendanceConfig.allowedRadiusMeters || 100)) {
           const gpsLabel = `Office GPS (${dist}m) (Auto)`;
-          checkInMember(activeMember, gpsLabel);
+          checkInMember(activeMember, gpsLabel, undefined, effectiveTimestamp);
         }
       };
 
@@ -1612,8 +1639,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     attendanceRecords,
   ]);
 
-  const checkOutMember = (memberName: string) => {
-    const now = new Date();
+  const checkOutMember = (memberName: string, customCheckoutDate?: Date) => {
+    const now = customCheckoutDate || new Date();
     const todayStr = getLocalDateString(now);
     const timeString = now.toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -1645,6 +1672,67 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     );
     addActivity(`${memberName} checked out at ${timeString}`, "status");
   };
+
+  // Auto Check-Out after 7:30 PM (19:30) for any Member / Coordinator who didn't manually check out
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const runAutoCheckoutAfter730Pm = () => {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+
+      // Check if current time is >= 7:30 PM (19:30)
+      const isPast730Pm = currentHour > 19 || (currentHour === 19 && currentMinute >= 30);
+      if (!isPast730Pm) return;
+
+      const todayStr = getLocalDateString(now);
+
+      // Find any member or coordinator who checked in today but has not checked out yet
+      setAttendanceRecords((prev) => {
+        let changed = false;
+        const updated = prev.map((r) => {
+          if (r.date === todayStr && !r.checkOutTime) {
+            changed = true;
+            // Check out time is fixed at 07:30:00 PM if auto-checked out
+            const autoCheckoutTimeStr = "07:30:00 PM";
+            const checkoutDate = new Date(now);
+            checkoutDate.setHours(19, 30, 0, 0);
+            const checkoutTs = checkoutDate.getTime();
+            const diffMins = Math.max(1, Math.round((checkoutTs - r.checkInTimestamp) / 60000));
+
+            const autoRecord: AttendanceRecord = {
+              ...r,
+              checkOutTime: autoCheckoutTimeStr,
+              checkOutTimestamp: checkoutTs,
+              workingMinutes: diffMins,
+              status: "Checked Out",
+            };
+            upsertAttendanceRecordDb(autoRecord);
+            addActivity(`${r.member} auto checked out at 07:30 PM (System Rule)`, "status");
+            return autoRecord;
+          }
+          return r;
+        });
+
+        if (changed) {
+          try {
+            localStorage.setItem(STORAGE_KEYS.ATTENDANCE_RECORDS, JSON.stringify(updated));
+          } catch (e) {
+            console.error(e);
+          }
+          return updated;
+        }
+        return prev;
+      });
+    };
+
+    // Check on initial load
+    runAutoCheckoutAfter730Pm();
+    // And run periodic check every minute
+    const autoCheckoutInterval = setInterval(runAutoCheckoutAfter730Pm, 60000);
+    return () => clearInterval(autoCheckoutInterval);
+  }, [isHydrated]);
 
   const adminUpdateAttendance = (id: string, updated: Partial<AttendanceRecord>) => {
     setAttendanceRecords((prev) => {
