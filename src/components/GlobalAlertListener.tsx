@@ -144,46 +144,99 @@ export default function GlobalAlertListener() {
     }
   }, [broadcastAlerts, activeName, activeAlert]);
 
-  // 6:00 PM Daily Reminder for Coordinator (and Admin): Remind Pixelians to update daily tasks
+  // =========================================================================
+  // SCHEDULED REMINDERS (Only 2 fixed times per user instruction):
+  // 1. 11:00 AM: Ask members & coordinator to check assigned tasks for today
+  // 2. 06:00 PM: Ask members & coordinator to update and complete their daily tasks
+  // All other spontaneous notification music on status/comments/assignments have been removed.
+  // =========================================================================
   useEffect(() => {
-    // Target Coordinator and Admin so coordinator directly gets notified to instruct members
-    const isTargetUser = sessionUser?.role === "coordinator" || sessionUser?.role === "admin" || !sessionUser;
-    if (!isTargetUser) return;
+    if (!activeName) return;
 
-    const checkDaily6PmReminder = () => {
+    const checkScheduledDailyReminders = () => {
       const now = new Date();
+      const currentHour = now.getHours();
       const todayKey = now.toISOString().split("T")[0];
-      const reminderDoneKey = `ptm_6pm_task_reminder_${todayKey}`;
 
-      // Check if it's 6:00 PM (18:00 to 18:59)
-      if (now.getHours() === 18) {
-        const alreadyFired = localStorage.getItem(reminderDoneKey);
-        if (!alreadyFired) {
-          localStorage.setItem(reminderDoneKey, "true");
-          // Play ringtone
+      // 1. 11:00 AM Reminder (11:00 - 11:59)
+      if (currentHour === 11) {
+        const reminder11AmKey = `ptm_11am_task_review_${todayKey}`;
+        const alreadyFired11Am = localStorage.getItem(reminder11AmKey);
+        if (!alreadyFired11Am) {
+          localStorage.setItem(reminder11AmKey, "true");
+          // Play notification music!
           playAlertSound({ volume: 1.0 });
+
+          const title = "📋 11:00 AM Task Review";
+          const message = "Please review your assigned tasks for today and start working on them.";
+
           // Native system notification
           if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
             try {
-              new Notification("⏰ 6:00 PM Task Reminder", {
-                body: "Please tell your Pixelians to update their daily tasks.",
+              new Notification(title, {
+                body: message,
                 icon: "/icon-192.png",
               });
             } catch {}
           }
-          // English voice announcement
-          setTimeout(() => {
-            speakText("Please tell your Pixelians to update their daily tasks.");
-          }, 1200);
+
+          // In-app side toast banner
+          setActiveAlert({
+            id: `alert_11am_${Date.now()}`,
+            title,
+            message,
+            targetType: "all",
+            priority: "normal",
+            createdAt: now.toISOString(),
+            createdTimeDisplay: "11:00 AM",
+            createdDate: todayKey,
+            acknowledgedBy: [],
+          });
+        }
+      }
+
+      // 2. 06:00 PM Reminder (18:00 - 18:59)
+      if (currentHour === 18) {
+        const reminder6PmKey = `ptm_6pm_task_update_${todayKey}`;
+        const alreadyFired6Pm = localStorage.getItem(reminder6PmKey);
+        if (!alreadyFired6Pm) {
+          localStorage.setItem(reminder6PmKey, "true");
+          // Play notification music!
+          playAlertSound({ volume: 1.0 });
+
+          const title = "⏰ 6:00 PM Daily Task Update";
+          const message = "Please update your daily task status, add remarks, and submit your EOD report.";
+
+          // Native system notification
+          if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+            try {
+              new Notification(title, {
+                body: message,
+                icon: "/icon-192.png",
+              });
+            } catch {}
+          }
+
+          // In-app side toast banner
+          setActiveAlert({
+            id: `alert_6pm_${Date.now()}`,
+            title,
+            message,
+            targetType: "all",
+            priority: "normal",
+            createdAt: now.toISOString(),
+            createdTimeDisplay: "06:00 PM",
+            createdDate: todayKey,
+            acknowledgedBy: [],
+          });
         }
       }
     };
 
-    // Run immediately and every 30 seconds
-    checkDaily6PmReminder();
-    const interval = setInterval(checkDaily6PmReminder, 30000);
+    checkScheduledDailyReminders();
+    const interval = setInterval(checkScheduledDailyReminders, 30000);
     return () => clearInterval(interval);
-  }, [sessionUser]);
+  }, [activeName]);
 
   const handleAcknowledge = async () => {
     if (!activeAlert) return;

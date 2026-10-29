@@ -1080,18 +1080,6 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (status === "Done") received = target.expected;
       if (status === "Can't Do") received = "0";
       upsertTaskDb({ ...target, status, received });
-
-      // Notify Admin and Coordinator when a member updates status (exclude self)
-      const isMember = target.member && user.toLowerCase() === target.member.toLowerCase();
-      if (isMember) {
-        sendBroadcastAlert({
-          title: `Task Status Update: ${target.name}`,
-          message: `${user} updated status to "${status}" on task "${target.name}".`,
-          priority: "normal",
-          targetType: "admin_coordinator",
-          sender: user,
-        }).catch(() => {});
-      }
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id) {
@@ -1109,18 +1097,6 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (target && target.comments !== comment) {
       addActivity(`${user} updated comment on ${target.name}: "${comment || "Cleared"}"`, "comment");
       upsertTaskDb({ ...target, comments: comment });
-
-      // Notify Admin and Coordinator when a member comments (exclude self)
-      const isMember = target.member && user.toLowerCase() === target.member.toLowerCase();
-      if (isMember) {
-        sendBroadcastAlert({
-          title: `Task Comment from ${user}`,
-          message: `${user} commented on "${target.name}": "${comment}"`,
-          priority: "normal",
-          targetType: "admin_coordinator",
-          sender: user,
-        }).catch(() => {});
-      }
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id && c.comments !== comment) {
@@ -1135,18 +1111,6 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (target) {
       addActivity(`${adminName} assigned ${target.name} to ${memberName}`, "assign");
       upsertTaskDb({ ...target, member: memberName });
-
-      // Notification with music specifically to that assigned member
-      if (memberName) {
-        sendBroadcastAlert({
-          title: "New Task Assigned! 🎯",
-          message: `${adminName} assigned task "${target.name}" (${target.category}) to you.`,
-          priority: "normal",
-          targetType: "individual",
-          targetMember: memberName,
-          sender: adminName,
-        }).catch(() => {});
-      }
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id) {
@@ -1164,14 +1128,6 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     upsertTaskDb(client);
     if (client.member) {
       setCurrentMember(client.member);
-      // Notification with music specifically to assigned member
-      sendBroadcastAlert({
-        title: "New Task Assigned! 🎯",
-        message: `${adminName} assigned task "${client.name}" (${client.category}) to you.`,
-        priority: "normal",
-        targetType: "individual",
-        targetMember: client.member,
-      }).catch(() => {});
     }
     setDirectoryClients((prev) => {
       const exists = prev.some((dc) => dc.name.toLowerCase() === client.name.toLowerCase());
@@ -2182,15 +2138,6 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
     upsertMemberHolidaySelectionDb(updatedSelection);
     addActivity(`${cleanMember} updated their chosen holiday list (${selectedHolidayIds.length} days)`, "status");
-
-    // Notification with music to Admin & Coordinator
-    sendBroadcastAlert({
-      title: "Holiday Request Update",
-      message: `${cleanMember} submitted / updated their selected holiday list (${selectedHolidayIds.length} days). Please review & approve.`,
-      priority: "normal",
-      targetType: "admin_coordinator",
-      sender: cleanMember,
-    }).catch(() => {});
   };
 
   const updateMemberHolidaySelectionStatus = (
@@ -2222,14 +2169,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     });
 
     if (targetMember) {
-      // Notification with music specifically to that member
-      sendBroadcastAlert({
-        title: `Holiday Selection ${status}`,
-        message: `Admin has ${status.toLowerCase()} your chosen holiday list.${adminRemark ? ` Note: "${adminRemark}"` : ""}`,
-        priority: status === "Approved" ? "normal" : "urgent",
-        targetType: "individual",
-        targetMember: targetMember,
-      }).catch(() => {});
+      addActivity(`Holiday selection for ${targetMember} marked as ${status}`, "status");
     }
   };
 
