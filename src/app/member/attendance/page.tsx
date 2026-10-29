@@ -177,12 +177,16 @@ export default function MemberAttendancePage() {
   // 3. GPS check
   const isGpsMatched = gpsStatus === "matched";
 
-  // 4. Presence verification (Must have either Panda WiFi OR Verified GPS)
+  // 4. Presence verification:
+  // - Check-In requires being in the office (WiFi or GPS)
+  // - Check-Out requires NO CONNECTION restriction (members can check out anytime without WiFi/GPS blocks)
   const isPresenceRequired = attendanceConfig.requireWifiOrGps !== false;
   const isPresenceVerified = isPresenceRequired ? (isWifiMatched || isGpsMatched) : true;
 
-  // CAN CHECK IN OR OUT: Allowed whenever member is present at office (WiFi or GPS)
-  const canCheckInOrOut = isPresenceVerified;
+  // CAN CHECK IN: Requires office presence
+  // CAN CHECK OUT: Always allowed once checked in! (No WiFi/GPS blocking)
+  const canCheckIn = isPresenceVerified;
+  const canCheckOut = true;
 
   const getVerificationLabel = () => {
     if (isWifiMatched) return `${attendanceConfig.wifiName || "Panda WiFi"}`;
@@ -266,7 +270,7 @@ export default function MemberAttendancePage() {
       isCloudSynced &&
       todayStr &&
       attendanceConfig.autoCheckInOnOpen !== false &&
-      canCheckInOrOut &&
+      canCheckIn &&
       isStrictPresenceOk &&
       !todayRecord
     ) {
@@ -277,7 +281,7 @@ export default function MemberAttendancePage() {
     todayStr,
     attendanceConfig.autoCheckInOnOpen,
     attendanceConfig.requireWifiOrGps,
-    canCheckInOrOut,
+    canCheckIn,
     isWifiMatched,
     isGpsMatched,
     Boolean(todayRecord),
@@ -473,12 +477,50 @@ export default function MemberAttendancePage() {
 
         {/* Single Clean Action Button */}
         <div>
-          {!canCheckInOrOut ? (
+          {/* If member has checked in and needs to check out: ALWAYS ALLOW CHECKOUT (No WiFi or GPS connection required!) */}
+          {todayRecord && !todayRecord.checkOutTime ? (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowCheckOutConfirm(true)}
+                className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <LogOut size={18} />
+                Check Out Now ({liveTimeStr})
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-2xl border border-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                title="Send Daily Work Report to Sir (8240017974)"
+              >
+                <MessageCircle size={15} className="text-emerald-600" />
+                <span>Send Today&apos;s Work Report to Sir (WhatsApp)</span>
+              </button>
+            </div>
+          ) : todayRecord && todayRecord.checkOutTime ? (
+            <div className="space-y-3">
+              <div className="w-full py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
+                <CheckCircle2 size={18} className="text-emerald-600" />
+                Today&apos;s Attendance Completed!
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                title="Send Daily Work Report to Sir (8240017974)"
+              >
+                <MessageCircle size={18} />
+                <span>Send Today&apos;s Work Report to Sir (8240017974)</span>
+              </button>
+            </div>
+          ) : !canCheckIn ? (
+            /* Check In requires office presence */
             <div className="space-y-2">
               <div className="w-full py-3.5 bg-red-50 border border-red-200 text-red-700 font-bold text-xs rounded-2xl flex flex-col items-center justify-center gap-1.5 text-center px-4">
                 <div className="flex items-center gap-1.5 font-extrabold text-sm text-red-800">
                   <XCircle size={17} className="shrink-0 text-red-600" />
-                  <span>Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In/Out</span>
+                  <span>Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In</span>
                 </div>
                 {gpsStatus === "outside" && gpsDistance !== null && (
                   <div className="space-y-2 w-full pt-1">
@@ -514,7 +556,7 @@ export default function MemberAttendancePage() {
                 {gpsStatus === "checking" ? "Detecting Device GPS..." : "Re-Check Device GPS Location"}
               </button>
             </div>
-          ) : !todayRecord ? (
+          ) : (
             <button
               onClick={() => checkInMember(activeMemberName, getVerificationLabel())}
               className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -522,42 +564,6 @@ export default function MemberAttendancePage() {
               <LogIn size={18} />
               Check In Now ({liveTimeStr})
             </button>
-          ) : !todayRecord.checkOutTime ? (
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setShowCheckOutConfirm(true)}
-                className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <LogOut size={18} />
-                Check Out Now ({liveTimeStr})
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsReportModalOpen(true)}
-                className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-2xl border border-emerald-200 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
-                title="Send Daily Work Report to Sir (8240017974)"
-              >
-                <MessageCircle size={15} className="text-emerald-600" />
-                <span>Send Today&apos;s Work Report to Sir (WhatsApp)</span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="w-full py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-sm rounded-2xl flex items-center justify-center gap-2">
-                <CheckCircle2 size={18} className="text-emerald-600" />
-                Today&apos;s Attendance Completed!
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsReportModalOpen(true)}
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-                title="Send Daily Work Report to Sir (8240017974)"
-              >
-                <MessageCircle size={18} />
-                <span>Send Today&apos;s Work Report to Sir (8240017974)</span>
-              </button>
-            </div>
           )}
         </div>
       </div>
