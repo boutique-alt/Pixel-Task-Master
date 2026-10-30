@@ -1,0 +1,17 @@
+name: Scheduled Device Reminders (10 AM & 6 PM IST)
+
+on:
+  schedule:
+    # 10:00 AM IST = 04:30 AM UTC
+    - cron: '30 4 * * *'
+    # 06:00 PM IST = 12:30 PM UTC
+    - cron: '30 12 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  send-push-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Scheduled Reminder Push to all Member Devices
+        run: |
+          curl -s -X GET "https://pixeltaskmaster.vercel.app/api/cron/scheduled-reminders" || true

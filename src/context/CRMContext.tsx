@@ -1479,122 +1479,13 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Auto Check-In on 1st WiFi OR GPS + Laptop connection of the day
+  // Auto Check-In background watcher disabled per new plan:
+  // Check-In is now user-action driven!
+  // When Member/Coordinator connects to Panda WiFi or Office GPS, the "Check In Now" button activates,
+  // and the user explicitly clicks the button to check in.
   useEffect(() => {
-    if (!isHydrated || !attendanceConfig.autoCheckInOnOpen) return;
-
-    // Both Members and Coordinators should be automatically checked in
-    const isCheckinRole = sessionUser?.role === "member" || sessionUser?.role === "coordinator";
-    if (!sessionUser || !isCheckinRole || !sessionUser.name) return;
-    const activeMember = sessionUser.name.trim();
-    if (!activeMember || activeMember.toLowerCase() === "admin") return;
-
-    const now = new Date();
-    const currentHour = now.getHours();
-
-    // Legitimate office hours check (7:30 AM to 8:30 PM)
-    if (currentHour < 7 || (currentHour === 7 && now.getMinutes() < 30) || currentHour >= 21) return;
-
-    const todayStr = getLocalDateString(now);
-
-    const alreadyCheckedInToday = attendanceRecords.some(
-      (r) => r.member.trim().toLowerCase() === activeMember.toLowerCase() && r.date === todayStr
-    );
-    if (alreadyCheckedInToday) return;
-
-    const devEntry = authorizedDevices.find((d) => d.deviceId === currentDeviceId);
-    const laptopOk =
-      attendanceConfig.requireAuthorizedLaptop === false ||
-      Boolean(
-        devEntry &&
-          devEntry.status === "Approved" &&
-          (devEntry.assignedMember === "All (Office Laptop)" ||
-            devEntry.assignedMember.toLowerCase() === activeMember.toLowerCase())
-      );
-
-    if (!laptopOk) return;
-
-    // Compute device startup/online timestamp (if available via performance.timeOrigin)
-    // If user opened laptop at 9:15 AM but only opened browser tab at 10:00 AM,
-    // performance.timeOrigin captures the actual session start time today!
-    let effectiveTimestamp = now.getTime();
-    try {
-      if (typeof window !== "undefined" && window.performance && window.performance.timeOrigin) {
-        const perfOrigin = Math.round(window.performance.timeOrigin);
-        const originDate = new Date(perfOrigin);
-        if (getLocalDateString(originDate) === todayStr && originDate.getHours() >= 8 && originDate.getTime() < now.getTime()) {
-          effectiveTimestamp = perfOrigin;
-        }
-      }
-    } catch {
-      // fallback to current time
-    }
-
-    const wifiOk = isWifiIpMatched(currentNetworkIp, attendanceConfig.registeredWifiIp);
-
-    if (wifiOk) {
-      const viaLabel = `${attendanceConfig.wifiName || "Panda WiFi"}${
-        attendanceConfig.requireAuthorizedLaptop ? " + Office Laptop" : ""
-      } (Auto)`;
-      checkInMember(activeMember, viaLabel, undefined, effectiveTimestamp);
-      return;
-    }
-
-    // Also auto-check live GPS against Admin's Office GPS coordinates
-    if (
-      typeof window !== "undefined" &&
-      navigator.geolocation &&
-      attendanceConfig.officeLat !== null &&
-      attendanceConfig.officeLng !== null
-    ) {
-      const checkGpsPos = (pos: GeolocationPosition) => {
-        const R = 6371e3;
-        const toRad = (deg: number) => (deg * Math.PI) / 180;
-        const dLat = toRad(attendanceConfig.officeLat! - pos.coords.latitude);
-        const dLon = toRad(attendanceConfig.officeLng! - pos.coords.longitude);
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(toRad(pos.coords.latitude)) *
-            Math.cos(toRad(attendanceConfig.officeLat!)) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const dist = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-
-        if (dist <= (attendanceConfig.allowedRadiusMeters || 100)) {
-          const gpsLabel = `Office GPS (${dist}m) (Auto)`;
-          checkInMember(activeMember, gpsLabel, undefined, effectiveTimestamp);
-        }
-      };
-
-      navigator.geolocation.getCurrentPosition(
-        checkGpsPos,
-        (err) => {
-          if (err.code !== 1) {
-            navigator.geolocation.getCurrentPosition(
-              checkGpsPos,
-              () => {},
-              { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-            );
-          }
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-      );
-    }
-  }, [
-    isHydrated,
-    attendanceConfig.autoCheckInOnOpen,
-    attendanceConfig.registeredWifiIp,
-    attendanceConfig.requireAuthorizedLaptop,
-    attendanceConfig.wifiName,
-    attendanceConfig.officeLat,
-    attendanceConfig.officeLng,
-    attendanceConfig.allowedRadiusMeters,
-    currentNetworkIp,
-    currentDeviceId,
-    authorizedDevices,
-    sessionUser,
-    attendanceRecords,
-  ]);
+    // Left intentionally passive to respect explicit user-initiated check-in
+  }, []);
 
   const checkOutMember = (memberName: string, customCheckoutDate?: Date) => {
     const now = customCheckoutDate || new Date();

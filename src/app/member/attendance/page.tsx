@@ -262,31 +262,9 @@ export default function MemberAttendancePage() {
     }
   }, [attendanceConfig.officeLat, attendanceConfig.officeLng]);
 
-  // Auto Check-In on 1st connection of the day
-  // STRICT GUARD: Must wait for isCloudSynced, and only check in if no record exists for today!
-  useEffect(() => {
-    const isStrictPresenceOk = isWifiMatched || isGpsMatched || attendanceConfig.requireWifiOrGps === false;
-    if (
-      isCloudSynced &&
-      todayStr &&
-      attendanceConfig.autoCheckInOnOpen !== false &&
-      canCheckIn &&
-      isStrictPresenceOk &&
-      !todayRecord
-    ) {
-      checkInMember(activeMemberName, getVerificationLabel());
-    }
-  }, [
-    isCloudSynced,
-    todayStr,
-    attendanceConfig.autoCheckInOnOpen,
-    attendanceConfig.requireWifiOrGps,
-    canCheckIn,
-    isWifiMatched,
-    isGpsMatched,
-    Boolean(todayRecord),
-    activeMemberName,
-  ]);
+  // Auto Check-In background effect disabled per new plan:
+  // Check-In is strictly triggered when member/coordinator manually clicks the activated "Check In Now" button.
+  // The button is only activated if Panda WiFi OR Office GPS is verified.
 
   const getLiveElapsedDisplay = () => {
     if (!todayRecord) return { text: "0h 00m", percent: 0 };
@@ -515,55 +493,60 @@ export default function MemberAttendancePage() {
               </button>
             </div>
           ) : !canCheckIn ? (
-            /* Check In requires office presence */
-            <div className="space-y-2">
-              <div className="w-full py-3.5 bg-red-50 border border-red-200 text-red-700 font-bold text-xs rounded-2xl flex flex-col items-center justify-center gap-1.5 text-center px-4">
+            /* Check In is Deactivated when neither WiFi nor GPS is connected */
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled
+                className="w-full py-4 bg-gray-200 text-gray-400 font-black text-sm rounded-2xl flex items-center justify-center gap-2 cursor-not-allowed border border-gray-300"
+                title="Connect to Office Panda WiFi or GPS to activate Check In"
+              >
+                <LogIn size={18} />
+                Check In Deactivated (Connect Office WiFi or GPS)
+              </button>
+
+              <div className="w-full py-3 bg-red-50 border border-red-200 text-red-700 font-bold text-xs rounded-2xl flex flex-col items-center justify-center gap-1.5 text-center px-4">
                 <div className="flex items-center gap-1.5 font-extrabold text-sm text-red-800">
                   <XCircle size={17} className="shrink-0 text-red-600" />
-                  <span>Connect to Office &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Check In</span>
+                  <span>Connect to &ldquo;{attendanceConfig.wifiName || "Panda WiFi"}&rdquo; or Office GPS to Activate</span>
                 </div>
                 {gpsStatus === "outside" && gpsDistance !== null && (
-                  <div className="space-y-2 w-full pt-1">
-                    <p className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">
-                      Device GPS is <strong>{gpsDistance}m</strong> away from office (Allowed radius: {attendanceConfig.allowedRadiusMeters || 100}m). You must be within 100 meters of the office to check in.
-                    </p>
-                    {sessionUser?.role === "admin" && (
-                      <button
-                        type="button"
-                        onClick={handleSetLiveGpsAsOffice}
-                        disabled={isSettingOfficeGps}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        <MapPin size={14} />
-                        {isSettingOfficeGps ? "Saving Location to Office..." : "📍 Admin: Set Current Location as Office GPS"}
-                      </button>
-                    )}
-                  </div>
+                  <p className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">
+                    Device GPS is <strong>{gpsDistance}m</strong> away from office (Allowed radius: {attendanceConfig.allowedRadiusMeters || 100}m).
+                  </p>
                 )}
                 {gpsStatus === "error" && (
                   <p className="text-[11px] font-semibold text-red-800 bg-red-100/80 px-2.5 py-1 rounded-lg">
-                    Location access was denied or unavailable. Please click the padlock / site settings icon in your browser address bar and choose &quot;Allow Location&quot;.
+                    Location access was denied or unavailable. Please allow location in your browser.
                   </p>
                 )}
               </div>
+
               <button
                 type="button"
                 onClick={handleVerifyGps}
                 disabled={gpsStatus === "checking"}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Navigation size={14} className={gpsStatus === "checking" ? "animate-spin" : ""} />
                 {gpsStatus === "checking" ? "Detecting Device GPS..." : "Re-Check Device GPS Location"}
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => checkInMember(activeMemberName, getVerificationLabel())}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <LogIn size={18} />
-              Check In Now ({liveTimeStr})
-            </button>
+            /* Check In Activated: User must click to check in */
+            <div className="space-y-2 animate-in zoom-in-95 duration-200">
+              <div className="w-full py-2 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs rounded-xl flex items-center justify-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                <span>Office Verified ({getVerificationLabel()}) • Click below to Check In</span>
+              </div>
+              <button
+                onClick={() => checkInMember(activeMemberName, getVerificationLabel())}
+                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98"
+              >
+                <LogIn size={18} />
+                Check In Now ({liveTimeStr})
+              </button>
+            </div>
           )}
         </div>
       </div>

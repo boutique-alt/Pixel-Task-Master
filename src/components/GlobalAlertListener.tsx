@@ -16,6 +16,7 @@ export default function GlobalAlertListener() {
   const [activeAlert, setActiveAlert] = useState<BroadcastAlert | null>(null);
   const [showPermissionBanner, setShowPermissionBanner] = useState(false);
   const seenAlertIdsRef = useRef<Set<string>>(new Set());
+  const initialLoadTimeRef = useRef<number>(Date.now());
 
   // Determine active member name
   const activeName = (sessionUser?.name || currentMember || "").trim();
@@ -119,7 +120,21 @@ export default function GlobalAlertListener() {
       return false;
     });
 
-    // Find latest unacknowledged alert
+    // Guard against flood on site open:
+    // Mark any pre-existing database alerts created before or around session start (> 2 min ago)
+    // as already seen so opening the site doesn't play sound or queue stale past alerts.
+    const nowTs = Date.now();
+    userAlerts.forEach((alert) => {
+      if (alert.createdAt) {
+        const createdTs = new Date(alert.createdAt).getTime();
+        // If alert was created more than 2 minutes ago or before session loaded, don't replay sound
+        if (nowTs - createdTs > 2 * 60 * 1000 || createdTs < initialLoadTimeRef.current - 30 * 1000) {
+          seenAlertIdsRef.current.add(alert.id);
+        }
+      }
+    });
+
+    // Find latest fresh unacknowledged alert (only true real-time new alerts created while page is running)
     const pendingAlert = userAlerts.find((alert) => {
       if (alert.acknowledgedBy && alert.acknowledgedBy.some((m) => m.toLowerCase() === activeName.toLowerCase())) {
         return false;
@@ -131,8 +146,9 @@ export default function GlobalAlertListener() {
     });
 
     if (pendingAlert && (!activeAlert || activeAlert.id !== pendingAlert.id)) {
+      seenAlertIdsRef.current.add(pendingAlert.id);
       setActiveAlert(pendingAlert);
-      // Play custom ringtone!
+      // Play custom ringtone ONLY for fresh real-time alerts
       playAlertSound({ volume: pendingAlert.priority === "urgent" ? 1.0 : 0.85 });
       // Trigger native system desktop notification
       triggerNativeDesktopNotification(pendingAlert);
@@ -146,7 +162,7 @@ export default function GlobalAlertListener() {
 
   // =========================================================================
   // SCHEDULED REMINDERS (Only 2 fixed times per user instruction):
-  // 1. 11:00 AM: Ask members & coordinator to check assigned tasks for today
+  // 1. 10:00 AM: Ask members & coordinator to check assigned tasks for today
   // 2. 06:00 PM: Ask members & coordinator to update and complete their daily tasks
   // All other spontaneous notification music on status/comments/assignments have been removed.
   // =========================================================================
@@ -158,16 +174,16 @@ export default function GlobalAlertListener() {
       const currentHour = now.getHours();
       const todayKey = now.toISOString().split("T")[0];
 
-      // 1. 11:00 AM Reminder (11:00 - 11:59)
-      if (currentHour === 11) {
-        const reminder11AmKey = `ptm_11am_task_review_${todayKey}`;
-        const alreadyFired11Am = localStorage.getItem(reminder11AmKey);
-        if (!alreadyFired11Am) {
-          localStorage.setItem(reminder11AmKey, "true");
+      // 1. 10:00 AM Reminder (10:00 - 10:59)
+      if (currentHour === 10) {
+        const reminder10AmKey = `ptm_10am_task_review_${todayKey}`;
+        const alreadyFired10Am = localStorage.getItem(reminder10AmKey);
+        if (!alreadyFired10Am) {
+          localStorage.setItem(reminder10AmKey, "true");
           // Play notification music!
           playAlertSound({ volume: 1.0 });
 
-          const title = "📋 11:00 AM Task Review";
+          const title = "📋 10:00 AM Task Review";
           const message = "Please review your assigned tasks for today and start working on them.";
 
           // Native system notification
@@ -182,13 +198,13 @@ export default function GlobalAlertListener() {
 
           // In-app side toast banner
           setActiveAlert({
-            id: `alert_11am_${Date.now()}`,
+            id: `alert_10am_${Date.now()}`,
             title,
             message,
             targetType: "all",
             priority: "normal",
             createdAt: now.toISOString(),
-            createdTimeDisplay: "11:00 AM",
+            createdTimeDisplay: "10:00 AM",
             createdDate: todayKey,
             acknowledgedBy: [],
           });
