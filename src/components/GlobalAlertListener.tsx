@@ -16,13 +16,15 @@ export default function GlobalAlertListener() {
   const [activeAlert, setActiveAlert] = useState<BroadcastAlert | null>(null);
   const [showPermissionBanner, setShowPermissionBanner] = useState(false);
   const seenAlertIdsRef = useRef<Set<string>>(new Set());
-  const initialLoadTimeRef = useRef<number>(Date.now());
+  const initialLoadTimeRef = useRef<number>(0);
 
   // Determine active member name
   const activeName = (sessionUser?.name || currentMember || "").trim();
 
   // Register Service Worker and subscribe to Web Push
   useEffect(() => {
+    initialLoadTimeRef.current = Date.now();
+
     // 1. Load locally seen alert IDs
     try {
       const stored = localStorage.getItem("ptm_acknowledged_alerts_v1");
