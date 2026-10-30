@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { X, AlertCircle, Briefcase } from "lucide-react";
+import { X, AlertCircle, Briefcase, ChevronDown, ChevronUp } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
 import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
@@ -14,6 +14,7 @@ export default function AdminDashboard() {
   const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState("");
   const [today, setToday] = useState("");
+  const [isAlertsExpanded, setIsAlertsExpanded] = useState(false);
   const [clientFilter, setClientFilter] = useState("all");
   const [addClientName, setAddClientName] = useState("");
   const [addClientPhone, setAddClientPhone] = useState("");
@@ -76,9 +77,9 @@ export default function AdminDashboard() {
   };
 
   const ignoredTasks = today
-    ? clients.filter(
-        c => (c.status === "Pending" || c.status === "In Progress") && c.endDate < today
-      )
+    ? clients
+        .filter(c => (c.status === "Pending" || c.status === "In Progress") && c.endDate < today)
+        .sort((a, b) => (a.endDate || "").localeCompare(b.endDate || ""))
     : [];
 
   return (
@@ -199,29 +200,62 @@ export default function AdminDashboard() {
 
           {/* Overdue In-Progress & Pending Tasks Alert */}
           {ignoredTasks.length > 0 && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-5 rounded-r-xl shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertCircle className="text-red-600 w-5 h-5" />
-                <h3 className="font-bold text-red-900 text-lg">Overdue Tasks ({ignoredTasks.length}) — Pending / In Progress from Past Dates</h3>
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 sm:p-5 rounded-r-xl shadow-sm transition-all">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="text-red-600 w-5 h-5 shrink-0" />
+                  <h3 className="font-bold text-red-900 text-base sm:text-lg">
+                    Overdue Tasks ({ignoredTasks.length}) — Pending / In Progress from Past Dates
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAlertsExpanded(!isAlertsExpanded)}
+                  className="px-3 py-1.5 bg-white hover:bg-red-100/70 border border-red-200 text-red-900 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+                >
+                  <span>{isAlertsExpanded ? "Collapse" : `View All (${ignoredTasks.length})`}</span>
+                  {isAlertsExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {ignoredTasks.map(t => (
-                  <div key={t.id} className="flex flex-col bg-white p-4 rounded-lg border border-red-100 shadow-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-bold text-sm text-gray-800 truncate">{t.name}</p>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
-                        t.status === "In Progress" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"
-                      }`}>
-                        {t.status}
-                      </span>
+
+              {/* Default shows 1 Row (oldest 3 tasks), full grid when expanded */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(isAlertsExpanded ? ignoredTasks : ignoredTasks.slice(0, 3)).map(t => {
+                  const formattedDate = (() => {
+                    try {
+                      if (!t.endDate) return "No date";
+                      const parts = t.endDate.split("-");
+                      if (parts.length === 3) {
+                        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                      }
+                      return t.endDate;
+                    } catch {
+                      return t.endDate;
+                    }
+                  })();
+
+                  return (
+                    <div key={t.id} className="flex flex-col bg-white p-4 rounded-xl border border-red-100 shadow-sm justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-bold text-sm text-gray-800 truncate">{t.name}</p>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded shrink-0 ${
+                            t.status === "In Progress" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"
+                          }`}>
+                            {t.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Assigned to: <strong className="text-gray-800">{t.member || "Unassigned"}</strong></p>
+                      </div>
+                      <div className="mt-2 text-[11px] bg-red-50 text-red-700 px-2 py-1 rounded font-bold flex items-center justify-between">
+                        <span>Deadline: <strong className="underline underline-offset-2">{formattedDate}</strong></span>
+                        {t.comments ? <span className="text-gray-600 italic truncate max-w-[120px]">&ldquo;{t.comments}&rdquo;</span> : <span>No Remarks</span>}
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Assigned to: <strong className="text-gray-800">{t.member || "Unassigned"}</strong></p>
-                    <div className="mt-2 text-[10px] bg-red-50 text-red-700 px-2 py-1 rounded font-bold flex items-center justify-between">
-                      <span>Deadline passed: {t.endDate}</span>
-                      {t.comments ? <span className="text-gray-600 italic truncate max-w-[150px]">&ldquo;{t.comments}&rdquo;</span> : <span>No Remarks</span>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

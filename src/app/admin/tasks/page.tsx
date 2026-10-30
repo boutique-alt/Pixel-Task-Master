@@ -21,7 +21,9 @@ import {
   Phone,
   Mail,
   Building2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
 import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
@@ -61,6 +63,7 @@ export default function AdminTasksPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [today, setToday] = useState("");
   const [tomorrow, setTomorrow] = useState("");
+  const [isAlertsExpanded, setIsAlertsExpanded] = useState(false);
 
   // Task Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -128,9 +131,11 @@ export default function AdminTasksPage() {
   const pendingTasks = scopedTasks.filter((t) => t.status === "Pending").length;
   const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
-  // Overdue tasks: Pending or In Progress with endDate < today (yesterday or earlier)
+  // Overdue tasks: Pending or In Progress with endDate < today (yesterday or earlier), sorted oldest first
   const ignoredTasks = today
-    ? clients.filter((c) => (c.status === "Pending" || c.status === "In Progress") && c.endDate < today)
+    ? clients
+        .filter((c) => (c.status === "Pending" || c.status === "In Progress") && c.endDate < today)
+        .sort((a, b) => (a.endDate || "").localeCompare(b.endDate || ""))
     : [];
 
   // Filtered tasks for the table
@@ -348,53 +353,90 @@ export default function AdminTasksPage() {
 
       {/* Overdue In-Progress & Pending Tasks Alert */}
       {ignoredTasks.length > 0 && (
-        <div className="bg-[#FFF8ED] border border-[#FFEDD5] rounded-[24px] p-5 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
+        <div className="bg-[#FFF8ED] border border-[#FFEDD5] rounded-[24px] p-4 sm:p-5 shadow-sm transition-all">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-[#FFEDD5] text-[#F97316] flex items-center justify-center shrink-0">
                 <AlertCircle size={20} />
               </div>
               <div>
-                <h3 className="font-extrabold text-[#10254F] text-[15px]">
-                  Attention Required: Overdue Pending & In Progress Tasks ({ignoredTasks.length})
-                </h3>
-                <p className="text-[12px] text-[#64748B] font-medium">
-                  These tasks had their deadline yesterday or earlier and are still In Progress or Pending.
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-extrabold text-[#10254F] text-[15px]">
+                    Attention Required: Overdue Tasks ({ignoredTasks.length})
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700">
+                    Oldest pending from past dates
+                  </span>
+                </div>
+                <p className="text-[12px] text-[#64748B] font-medium hidden sm:block">
+                  These tasks had their deadline in past dates and are still pending or in progress.
                 </p>
               </div>
             </div>
+
+            {/* Dropdown toggle to expand/collapse all */}
+            <button
+              type="button"
+              onClick={() => setIsAlertsExpanded(!isAlertsExpanded)}
+              className="px-3.5 py-2 bg-white hover:bg-[#FFEDD5]/50 border border-[#FFEDD5] text-[#10254F] rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+            >
+              <span>{isAlertsExpanded ? "Collapse" : `View All (${ignoredTasks.length})`}</span>
+              {isAlertsExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
-            {ignoredTasks.map((t) => (
-              <div key={t.id} className="bg-white p-4 rounded-2xl border border-[#FFEDD5] shadow-sm flex items-center justify-between gap-3">
-                <div className="overflow-hidden">
-                  <div className="flex items-center gap-2">
-                    <p className="font-extrabold text-[13px] text-[#10254F] truncate">{t.name}</p>
-                    <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
-                      t.status === "In Progress"
-                        ? "bg-amber-50 text-amber-700 border-amber-200"
-                        : "bg-[#FEF2F2] text-[#DC2626] border-[#FEE2E2]"
-                    }`}>
-                      {t.status}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#64748B] font-medium mt-1 truncate">
-                    Member: <strong className="text-[#1677FF]">{t.member || "Unassigned"}</strong> • Deadline: <strong className="text-[#DC2626]">{t.endDate}</strong>
-                  </p>
-                  {t.comments && (
-                    <p className="text-[10px] text-gray-500 italic mt-0.5 truncate">
-                      Remark: &ldquo;{t.comments}&rdquo;
+
+          {/* Cards display: 1 Row default (Oldest first), full grid when expanded */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3.5">
+            {(isAlertsExpanded ? ignoredTasks : ignoredTasks.slice(0, 3)).map((t) => {
+              const formattedDate = (() => {
+                try {
+                  if (!t.endDate) return "No date";
+                  const parts = t.endDate.split("-");
+                  if (parts.length === 3) {
+                    const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                  }
+                  return t.endDate;
+                } catch {
+                  return t.endDate;
+                }
+              })();
+
+              return (
+                <div key={t.id} className="bg-white p-4 rounded-2xl border border-[#FFEDD5] shadow-sm flex items-center justify-between gap-3">
+                  <div className="overflow-hidden flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-extrabold text-[13px] text-[#10254F] truncate">{t.name}</p>
+                      <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border shrink-0 ${
+                        t.status === "In Progress"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-[#FEF2F2] text-[#DC2626] border-[#FEE2E2]"
+                      }`}>
+                        {t.status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#64748B] font-medium mt-1 truncate">
+                      Member: <strong className="text-[#1677FF]">{t.member || "Unassigned"}</strong>
                     </p>
-                  )}
+                    <p className="text-[11px] font-bold text-red-600 mt-0.5 flex items-center gap-1">
+                      <span>Deadline:</span>
+                      <strong className="underline underline-offset-2">{formattedDate}</strong>
+                    </p>
+                    {t.comments && (
+                      <p className="text-[10px] text-gray-500 italic mt-0.5 truncate">
+                        Remark: &ldquo;{t.comments}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setEditingClient(t)}
+                    className="px-3 py-1.5 bg-[#FFF8ED] hover:bg-[#FFEDD5] text-[#F97316] text-[11px] font-extrabold rounded-lg transition-colors shrink-0 cursor-pointer"
+                  >
+                    Inspect
+                  </button>
                 </div>
-                <button
-                  onClick={() => setEditingClient(t)}
-                  className="px-3 py-1.5 bg-[#FFF8ED] hover:bg-[#FFEDD5] text-[#F97316] text-[11px] font-extrabold rounded-lg transition-colors shrink-0 cursor-pointer"
-                >
-                  Inspect
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
