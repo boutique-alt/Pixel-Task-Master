@@ -547,13 +547,27 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-export function isTaskOnDate(t: { taskType?: string; startDate?: string; endDate?: string }, dateStr: string): boolean {
+export function isTaskOnDate(
+  t: { taskType?: string; startDate?: string; endDate?: string; status?: string },
+  dateStr: string
+): boolean {
   if (!dateStr) return true;
-  // Rule 1: Regular tasks belong to everyday routine and are automatically assigned/present on every date!
+
+  // Rule 1: Regular tasks belong to everyday routine and are automatically present on every date!
   if (t.taskType === "Regular") {
     return true;
   }
-  // Rule 2: Scheduled / One-Time tasks
+
+  // Rule 2: Automatic Rollover / Carry-Forward Rule:
+  // If a task is still unfinished (Pending or In Progress) from a past date,
+  // it automatically rolls over and shows up in today's (or target day's) queue
+  // until the member or coordinator marks it as "Done" or "Can't Do"!
+  const isUnfinished = t.status === "Pending" || t.status === "In Progress";
+  if (isUnfinished && t.endDate && t.endDate < dateStr) {
+    return true;
+  }
+
+  // Rule 3: Scheduled / One-Time tasks on their active date range
   if (t.startDate === dateStr || t.endDate === dateStr) return true;
   if (t.startDate && t.endDate && t.startDate <= dateStr && t.endDate >= dateStr) return true;
   return false;
