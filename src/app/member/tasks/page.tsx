@@ -81,12 +81,35 @@ export default function MemberTasks() {
   // Filter tasks belonging to current logged-in member
   const myTasks = useMemo(() => {
     if (!clients) return [];
-    if (activeMemberName === "all") return clients;
-    return clients.filter(c => 
-      c.member?.trim().toLowerCase() === activeMemberName.trim().toLowerCase() ||
-      c.member?.trim().toLowerCase() === "hasibul" ||
-      c.member?.trim().toLowerCase() === "hasibul pailan"
-    );
+    const normalizedActive = activeMemberName.trim().toLowerCase();
+    const isHasibulUser = normalizedActive === "hasibul" || normalizedActive === "hasibul pailan";
+
+    const filtered = clients.filter(c => {
+      if (activeMemberName === "all") return true;
+      const mem = c.member?.trim().toLowerCase() || "";
+      if (mem === normalizedActive) return true;
+      if (isHasibulUser && (mem === "hasibul" || mem === "hasibul pailan")) return true;
+      return false;
+    });
+
+    // Ensure deduplication by task ID and content
+    const seenIds = new Set<string>();
+    const seenContent = new Set<string>();
+    const deduped: Client[] = [];
+    for (const t of filtered) {
+      if (t.id && seenIds.has(t.id)) continue;
+      // Robust normalized task key (Client Name + Task Details)
+      const cleanName = (t.name || "").trim().toLowerCase();
+      const cleanDetails = (t.taskDetails || "").trim().toLowerCase();
+      const taskIdentity = `${cleanName}:::${cleanDetails}`;
+
+      if (cleanName && seenContent.has(taskIdentity)) continue;
+
+      if (t.id) seenIds.add(t.id);
+      if (cleanName) seenContent.add(taskIdentity);
+      deduped.push(t);
+    }
+    return deduped;
   }, [clients, activeMemberName]);
 
   // Tasks filtered by active date filter (defaults to today)

@@ -593,6 +593,37 @@ export function parseTimeToMs(dateStr: string, timeStr?: string): number {
   return new Date(y, mon - 1, d, h, m, s).getTime();
 }
 
+export function dedupeClients(list: Client[]): Client[] {
+  if (!list || !Array.isArray(list)) return [];
+  const seenIds = new Set<string>();
+  const seenContent = new Set<string>();
+  const deduped: Client[] = [];
+
+  for (const c of list) {
+    if (!c) continue;
+    // 1. Deduplicate by unique task ID
+    if (c.id && seenIds.has(c.id)) {
+      continue;
+    }
+
+    // 2. Deduplicate identical duplicated tasks by Client Name + Task Details + Member
+    const normName = (c.name || "").trim().toLowerCase();
+    const normMember = (c.member || "").trim().toLowerCase();
+    const normDetails = (c.taskDetails || "").trim().toLowerCase();
+    const contentKey = `${normName}:::${normDetails}:::${normMember}`;
+
+    if (normName && seenContent.has(contentKey)) {
+      continue;
+    }
+
+    if (c.id) seenIds.add(c.id);
+    if (normName) seenContent.add(contentKey);
+    deduped.push(c);
+  }
+
+  return deduped;
+}
+
 export function CRMProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [directoryClients, setDirectoryClients] = useState<DirectoryClient[]>(INITIAL_DIRECTORY_CLIENTS);
@@ -657,7 +688,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       let parsedClients: Client[] | null = null;
       if (savedClients) {
         parsedClients = JSON.parse(savedClients);
-        if (parsedClients) setClients(parsedClients);
+        if (parsedClients) setClients(dedupeClients(parsedClients));
       }
       if (savedDirectory) setDirectoryClients(JSON.parse(savedDirectory));
       if (savedActivities) setActivities(JSON.parse(savedActivities));
@@ -864,7 +895,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
           if (dbMembers && dbMembers.length > 0) setMembers(dbMembers);
           if (dbClients && dbClients.length > 0) setDirectoryClients(dbClients);
-          if (dbTasks && dbTasks.length > 0) setClients(dbTasks);
+          if (dbTasks && dbTasks.length > 0) setClients(dedupeClients(dbTasks));
           if (dbAttRecs && dbAttRecs.length > 0) {
             const seen = new Set<string>();
             const deduped: AttendanceRecord[] = [];
@@ -988,17 +1019,18 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           });
         }
         if (cloudTasks !== null) {
+          const dedupedCloudTasks = dedupeClients(cloudTasks);
           setClients((prev) => {
             // Compare IDs to see if length or items changed
             const prevIds = prev.map((p) => p.id).sort().join(",");
-            const cloudIds = cloudTasks.map((c) => c.id).sort().join(",");
-            const isDifferent = prevIds !== cloudIds || JSON.stringify(prev) !== JSON.stringify(cloudTasks);
+            const cloudIds = dedupedCloudTasks.map((c) => c.id).sort().join(",");
+            const isDifferent = prevIds !== cloudIds || JSON.stringify(prev) !== JSON.stringify(dedupedCloudTasks);
 
             if (isDifferent) {
               try {
-                localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(cloudTasks));
+                localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(dedupedCloudTasks));
               } catch {}
-              return cloudTasks;
+              return dedupedCloudTasks;
             }
             return prev;
           });

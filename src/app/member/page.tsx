@@ -76,10 +76,28 @@ export default function MemberDashboard() {
     }
   }, [today, strictDueToday.length]);
 
-  const displayedTasks = dateFilteredTasks.filter(t => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    return true;
-  });
+  const displayedTasks = (() => {
+    const filtered = dateFilteredTasks.filter(t => {
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      return true;
+    });
+    const seenIds = new Set<string>();
+    const seenContent = new Set<string>();
+    const deduped: typeof filtered = [];
+    for (const t of filtered) {
+      if (t.id && seenIds.has(t.id)) continue;
+      const cleanName = (t.name || "").trim().toLowerCase();
+      const cleanDetails = (t.taskDetails || "").trim().toLowerCase();
+      const taskIdentity = `${cleanName}:::${cleanDetails}`;
+
+      if (cleanName && seenContent.has(taskIdentity)) continue;
+
+      if (t.id) seenIds.add(t.id);
+      if (cleanName) seenContent.add(taskIdentity);
+      deduped.push(t);
+    }
+    return deduped;
+  })();
 
   return (
     <div className="space-y-6 overflow-x-hidden">

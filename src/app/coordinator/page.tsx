@@ -93,34 +93,54 @@ export default function CoordinatorTasksPage() {
   const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
   // Filtered tasks for the table
-  const displayedTasks = dateFilteredTasks.filter((t) => {
-    if (memberFilter !== "all" && t.member !== memberFilter) return false;
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (viewFilter === "daily" && today) {
-      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
-    } else if (viewFilter === "overdue" && today) {
-      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
-    } else if (viewFilter === "regular") {
-      if (t.taskType !== "Regular") return false;
-    } else if (viewFilter === "onetime") {
-      if (t.taskType !== "One-Time") return false;
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = t.name.toLowerCase().includes(q);
-      const matchPhone = t.phone?.toLowerCase().includes(q);
-      const matchCategory = t.category?.toLowerCase().includes(q);
-      const matchDetails = t.taskDetails?.toLowerCase().includes(q);
-      const matchMember = t.member?.toLowerCase().includes(q);
-      const matchComments = t.comments?.toLowerCase().includes(q);
-      if (!matchName && !matchPhone && !matchCategory && !matchDetails && !matchMember && !matchComments) {
-        return false;
+  const displayedTasks = (() => {
+    const filtered = dateFilteredTasks.filter((t) => {
+      if (memberFilter !== "all" && t.member !== memberFilter) return false;
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (viewFilter === "daily" && today) {
+        if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
+      } else if (viewFilter === "overdue" && today) {
+        if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
+      } else if (viewFilter === "regular") {
+        if (t.taskType !== "Regular") return false;
+      } else if (viewFilter === "onetime") {
+        if (t.taskType !== "One-Time") return false;
       }
-    }
 
-    return true;
-  });
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = t.name.toLowerCase().includes(q);
+        const matchPhone = t.phone?.toLowerCase().includes(q);
+        const matchCategory = t.category?.toLowerCase().includes(q);
+        const matchDetails = t.taskDetails?.toLowerCase().includes(q);
+        const matchMember = t.member?.toLowerCase().includes(q);
+        const matchComments = t.comments?.toLowerCase().includes(q);
+        if (!matchName && !matchPhone && !matchCategory && !matchDetails && !matchMember && !matchComments) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    const seenIds = new Set<string>();
+    const seenContent = new Set<string>();
+    const deduped: Client[] = [];
+    for (const t of filtered) {
+      if (t.id && seenIds.has(t.id)) continue;
+      const cleanName = (t.name || "").trim().toLowerCase();
+      const cleanDetails = (t.taskDetails || "").trim().toLowerCase();
+      const cleanMember = (t.member || "").trim().toLowerCase();
+      const taskIdentity = `${cleanName}:::${cleanDetails}:::${cleanMember}`;
+
+      if (cleanName && seenContent.has(taskIdentity)) continue;
+
+      if (t.id) seenIds.add(t.id);
+      if (cleanName) seenContent.add(taskIdentity);
+      deduped.push(t);
+    }
+    return deduped;
+  })();
 
   return (
     <div className="space-y-6">
