@@ -549,27 +549,30 @@ export function getLocalDateString(date: Date = new Date()): string {
 
 export function isTaskOnDate(
   t: { taskType?: string; startDate?: string; endDate?: string; status?: string },
-  dateStr: string
+  dateStr: string,
+  forMemberPortal: boolean = false
 ): boolean {
   if (!dateStr) return true;
 
-  // Rule 1: Regular tasks belong to everyday routine and are automatically present on every date!
-  if (t.taskType === "Regular") {
-    return true;
-  }
-
-  // Rule 2: Automatic Rollover / Carry-Forward Rule:
-  // If a task is still unfinished (Pending or In Progress) from a past date,
-  // it automatically rolls over and shows up in today's (or target day's) queue
-  // until the member or coordinator marks it as "Done" or "Can't Do"!
-  const isUnfinished = t.status === "Pending" || t.status === "In Progress";
-  if (isUnfinished && t.endDate && t.endDate < dateStr) {
-    return true;
-  }
-
-  // Rule 3: Scheduled / One-Time tasks on their active date range
+  // Rule 1: Scheduled / Date-based check (Exact Date or Range Match)
+  // If the task has a specific date assigned (like today 2026-10-30):
   if (t.startDate === dateStr || t.endDate === dateStr) return true;
   if (t.startDate && t.endDate && t.startDate <= dateStr && t.endDate >= dateStr) return true;
+
+  // Rule 2: Automatic Rollover / Carry-Forward Rule (ONLY FOR MEMBER PORTAL):
+  // When a member views their daily tasks, any unfinished task from past dates rolls over
+  if (forMemberPortal) {
+    const isUnfinished = t.status === "Pending" || t.status === "In Progress";
+    if (isUnfinished && t.endDate && t.endDate < dateStr) {
+      return true;
+    }
+  }
+
+  // Rule 3: Regular Tasks with no specific date bounds (or for member daily view)
+  if (t.taskType === "Regular" && (!t.startDate && !t.endDate)) {
+    return true;
+  }
+
   return false;
 }
 

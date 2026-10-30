@@ -94,19 +94,19 @@ export default function MemberTasks() {
     if (dateFilterMode === "all") return myTasks;
     const targetDate = dateFilterMode === "today" ? today : dateFilterMode === "tomorrow" ? tomorrow : selectedDate;
     if (!targetDate) return myTasks;
-    return myTasks.filter(t => isTaskOnDate(t, targetDate));
+    return myTasks.filter(t => isTaskOnDate(t, targetDate, true));
   }, [myTasks, dateFilterMode, today, tomorrow, selectedDate]);
 
-  // Today-only count for badge
+  // Today-only count for badge (includes member's rollover tasks)
   const todayTasksCount = useMemo(() => {
     if (!today) return 0;
-    return myTasks.filter(t => isTaskOnDate(t, today)).length;
+    return myTasks.filter(t => isTaskOnDate(t, today, true)).length;
   }, [myTasks, today]);
 
   // Tomorrow-only count for badge
   const tomorrowTasksCount = useMemo(() => {
     if (!tomorrow) return 0;
-    return myTasks.filter(t => isTaskOnDate(t, tomorrow)).length;
+    return myTasks.filter(t => isTaskOnDate(t, tomorrow, false)).length;
   }, [myTasks, tomorrow]);
 
   // Keep local remarks synced with incoming tasks
