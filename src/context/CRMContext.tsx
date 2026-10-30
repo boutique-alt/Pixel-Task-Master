@@ -554,23 +554,23 @@ export function isTaskOnDate(
 ): boolean {
   if (!dateStr) return true;
 
-  // Rule 1: Scheduled / Date-based check (Exact Date or Range Match)
-  // If the task has a specific date assigned (like today 2026-10-30):
+  // Rule 1: Regular tasks are ongoing everyday routine work — ALWAYS show on Today, Tomorrow, and every date!
+  if (t.taskType === "Regular") {
+    return true;
+  }
+
+  // Rule 2: Scheduled / Date-based check (Exact Date or Range Match)
+  // For one-time tasks that have an explicit scheduled date
   if (t.startDate === dateStr || t.endDate === dateStr) return true;
   if (t.startDate && t.endDate && t.startDate <= dateStr && t.endDate >= dateStr) return true;
 
-  // Rule 2: Automatic Rollover / Carry-Forward Rule (ONLY FOR MEMBER PORTAL):
+  // Rule 3: Automatic Rollover / Carry-Forward Rule (ONLY FOR MEMBER PORTAL):
   // When a member views their daily tasks, any unfinished task from past dates rolls over
   if (forMemberPortal) {
     const isUnfinished = t.status === "Pending" || t.status === "In Progress";
     if (isUnfinished && t.endDate && t.endDate < dateStr) {
       return true;
     }
-  }
-
-  // Rule 3: Regular Tasks with no specific date bounds (or for member daily view)
-  if (t.taskType === "Regular" && (!t.startDate && !t.endDate)) {
-    return true;
   }
 
   return false;
