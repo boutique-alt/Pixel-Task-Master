@@ -522,15 +522,29 @@ export default function MemberAttendancePage() {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleVerifyGps}
-                disabled={gpsStatus === "checking"}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Navigation size={14} className={gpsStatus === "checking" ? "animate-spin" : ""} />
-                {gpsStatus === "checking" ? "Detecting Device GPS..." : "Re-Check Device GPS Location"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // 1. Trigger fast first-party IP refresh
+                    try {
+                      const res = await fetch("/api/attendance/network-ip", { cache: "no-store" });
+                      const d = await res.json();
+                      if (d?.ip && d.ip !== "127.0.0.1") {
+                        // Triggers instant context check
+                        window.dispatchEvent(new Event("online"));
+                      }
+                    } catch {}
+                    // 2. Trigger GPS check
+                    handleVerifyGps();
+                  }}
+                  disabled={gpsStatus === "checking"}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Navigation size={14} className={gpsStatus === "checking" ? "animate-spin" : ""} />
+                  {gpsStatus === "checking" ? "Verifying WiFi & GPS..." : "⚡ Instant Re-Check Connection"}
+                </button>
+              </div>
             </div>
           ) : (
             /* Check In Activated: User must click to check in */
@@ -540,7 +554,26 @@ export default function MemberAttendancePage() {
                 <span>Office Verified ({getVerificationLabel()}) • Click below to Check In</span>
               </div>
               <button
-                onClick={() => checkInMember(activeMemberName, getVerificationLabel())}
+                onClick={() => {
+                  // Capture device boot / startup timestamp if user booted earlier today
+                  let effectiveTimestamp: number | undefined = undefined;
+                  try {
+                    if (typeof window !== "undefined" && window.performance && window.performance.timeOrigin) {
+                      const perfOrigin = Math.round(window.performance.timeOrigin);
+                      const originDate = new Date(perfOrigin);
+                      const now = new Date();
+                      if (
+                        getLocalDateString(originDate) === getLocalDateString(now) &&
+                        originDate.getHours() >= 8 &&
+                        originDate.getTime() < now.getTime()
+                      ) {
+                        effectiveTimestamp = perfOrigin;
+                      }
+                    }
+                  } catch {}
+
+                  checkInMember(activeMemberName, getVerificationLabel(), undefined, effectiveTimestamp);
+                }}
                 className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98"
               >
                 <LogIn size={18} />

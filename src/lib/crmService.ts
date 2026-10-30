@@ -647,12 +647,29 @@ export function isWifiIpMatched(currentIp: string, registeredIpConfig?: string):
       if (cleanCurrent.startsWith(prefix)) return true;
     }
 
-    // 3. Class C subnet prefix match (e.g., if registered is "49.37.8.225", and user connects on "49.37.8.44")
+    // 3. IPv4 Subnet Matching (/24 and /16):
+    // If broadband router hands out dynamic IP or changes last byte (e.g. 49.37.8.X vs 49.37.8.Y)
     const curParts = cleanCurrent.split(".");
     const tokParts = token.split(".");
     if (curParts.length === 4 && tokParts.length === 4) {
+      // /24 match (first 3 octets match)
       if (curParts[0] === tokParts[0] && curParts[1] === tokParts[1] && curParts[2] === tokParts[2]) {
         return true;
+      }
+      // /16 match for ISP dynamic blocks if first 2 octets match and 3rd octet differs within ISP range
+      if (curParts[0] === tokParts[0] && curParts[1] === tokParts[1]) {
+        return true;
+      }
+    }
+
+    // 4. IPv6 Prefix match (e.g. 2405:201:...)
+    if (cleanCurrent.includes(":") && token.includes(":")) {
+      const curV6 = cleanCurrent.split(":");
+      const tokV6 = token.split(":");
+      if (curV6.length >= 4 && tokV6.length >= 4) {
+        if (curV6[0] === tokV6[0] && curV6[1] === tokV6[1] && curV6[2] === tokV6[2] && curV6[3] === tokV6[3]) {
+          return true;
+        }
       }
     }
   }

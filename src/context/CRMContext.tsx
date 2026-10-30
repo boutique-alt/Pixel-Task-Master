@@ -331,7 +331,7 @@ interface CRMContextType {
   requestDeviceAuthorization: (memberName: string, deviceName?: string) => void;
   updateDeviceStatus: (id: string, status: AuthorizedDevice["status"], assignedMember?: string) => void;
   deleteAuthorizedDevice: (id: string) => void;
-  checkInMember: (memberName: string, verifiedVia: string, lateReason?: string) => void;
+  checkInMember: (memberName: string, verifiedVia: string, lateReason?: string, customTimestamp?: number) => void;
   checkOutMember: (memberName: string) => void;
   adminUpdateAttendance: (id: string, updated: Partial<AttendanceRecord>) => void;
   deleteAttendanceRecord: (id: string) => void;
@@ -768,25 +768,38 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         setCurrentMember(parsedClients[0].member);
       }
 
-      // 3. Detect live public IP for Panda WiFi verification using fast multi-provider race
+      // 3. Detect live public IP for Panda WiFi verification using first-party endpoint + fast multi-provider race
       const detectIp = () => {
-        Promise.any([
-          fetch("https://api.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
-          fetch("https://api64.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
-          fetch("https://ipinfo.io/json").then((r) => r.json()).then((d) => d.ip),
-          fetch("https://icanhazip.com").then((r) => r.text()).then((t) => t.trim()),
-        ])
-          .then((ip) => {
-            if (ip) {
-              setCurrentNetworkIp(String(ip).trim());
+        // First try our own first-party endpoint (instant & immune to ad-blockers)
+        fetch("/api/attendance/network-ip", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data?.ip && data.ip !== "127.0.0.1") {
+              setCurrentNetworkIp(String(data.ip).trim());
+            } else {
+              throw new Error("Local fallback");
             }
           })
-          .catch(() => {});
+          .catch(() => {
+            // Fallback to high-speed public providers if local proxy differs
+            Promise.any([
+              fetch("https://api64.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
+              fetch("https://api.ipify.org?format=json").then((r) => r.json()).then((d) => d.ip),
+              fetch("https://ipinfo.io/json").then((r) => r.json()).then((d) => d.ip),
+              fetch("https://icanhazip.com").then((r) => r.text()).then((t) => t.trim()),
+            ])
+              .then((ip) => {
+                if (ip) {
+                  setCurrentNetworkIp(String(ip).trim());
+                }
+              })
+              .catch(() => {});
+          });
       };
 
       detectIp();
-      // Periodically refresh IP every 60 seconds and on window focus so WiFi switch immediately triggers
-      const ipInterval = setInterval(detectIp, 60000);
+      // Periodically refresh IP every 20 seconds and on window focus/online so WiFi switch immediately triggers
+      const ipInterval = setInterval(detectIp, 20000);
       window.addEventListener("focus", detectIp);
       window.addEventListener("online", detectIp);
 
