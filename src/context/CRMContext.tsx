@@ -14,6 +14,7 @@ import {
   deleteTaskDb,
   fetchAttendanceRecordsDb,
   upsertAttendanceRecordDb,
+  adminForceUpdateAttendanceRecordDb,
   deleteAttendanceRecordDb,
   fetchAuthorizedDevicesDb,
   upsertAuthorizedDeviceDb,
@@ -1771,7 +1772,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       });
 
       if (targetRecord) {
-        upsertAttendanceRecordDb(targetRecord);
+        adminForceUpdateAttendanceRecordDb(targetRecord);
         try {
           localStorage.setItem(STORAGE_KEYS.ATTENDANCE_RECORDS, JSON.stringify(nextRecords));
         } catch (e) {

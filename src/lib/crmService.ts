@@ -244,6 +244,35 @@ export async function upsertAttendanceRecordDb(rec: AttendanceRecord) {
   }
 }
 
+/**
+ * Force update an attendance record from Admin panel.
+ * Explicitly overwrites check_in_time, check_in_timestamp, status, etc.
+ */
+export async function adminForceUpdateAttendanceRecordDb(rec: AttendanceRecord) {
+  try {
+    const { error } = await supabase
+      .from("attendance_records")
+      .upsert({
+        id: rec.id,
+        member: rec.member,
+        date: rec.date,
+        check_in_time: rec.checkInTime,
+        check_in_timestamp: rec.checkInTimestamp,
+        check_out_time: rec.checkOutTime || null,
+        check_out_timestamp: rec.checkOutTimestamp || null,
+        working_minutes: rec.workingMinutes !== undefined ? rec.workingMinutes : null,
+        status: rec.status,
+        verified_via: rec.verifiedVia,
+        device_id: rec.deviceId,
+        late_reason: rec.lateReason || null,
+        admin_note: rec.adminNote || null,
+      });
+    if (error) console.error("adminForceUpdateAttendanceRecordDb error:", error);
+  } catch (err) {
+    console.error("adminForceUpdateAttendanceRecordDb unexpected error:", err);
+  }
+}
+
 export async function deleteAttendanceRecordDb(id: string) {
   const { error } = await supabase.from("attendance_records").delete().eq("id", id);
   if (error) console.error("deleteAttendanceRecordDb error:", error);
