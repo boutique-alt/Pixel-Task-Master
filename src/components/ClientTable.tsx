@@ -66,8 +66,7 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
             </tr>
           ) : (
             clients.map((c) => {
-              const isOverdue = today && c.status === "Pending" && c.endDate < today;
-              const isDueTodayNoUpdate = today && c.status === "Pending" && c.endDate <= today && !c.comments?.trim();
+              const isOverdue = today && (c.status === "Pending" || c.status === "In Progress") && c.endDate < today;
 
               return (
                 <tr key={c.id} className="hover:bg-[#F4F7FC]/50 transition-colors group">
@@ -199,15 +198,15 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
                   <td className="py-4 px-2 w-[230px]">
                     {isAdmin || isCoordinator ? (
                       <div className={`flex items-start gap-2 text-[12px] p-2 rounded-lg w-full border ${
-                        isDueTodayNoUpdate
+                        isOverdue && !c.comments?.trim()
                           ? "bg-[#FEF2F2] border-[#FEE2E2] text-[#DC2626]"
                           : c.comments?.trim()
                           ? "bg-[#F4F7FC] border-[#E3EBF5] text-[#14233F] font-semibold"
                           : "bg-[#F4F7FC] border-[#E3EBF5] text-[#64748B]"
                       }`}>
-                        <MessageCircle size={14} className={`shrink-0 mt-0.5 ${isDueTodayNoUpdate ? "text-[#DC2626]" : "text-[#1677FF]"}`} />
+                        <MessageCircle size={14} className={`shrink-0 mt-0.5 ${isOverdue && !c.comments?.trim() ? "text-[#DC2626]" : "text-[#1677FF]"}`} />
                         <p className="truncate" title={c.comments}>
-                          {c.comments?.trim() ? c.comments : isDueTodayNoUpdate ? "No member update yet!" : "No comments"}
+                          {c.comments?.trim() ? c.comments : isOverdue ? "No member update yet!" : "No comments"}
                         </p>
                       </div>
                     ) : (

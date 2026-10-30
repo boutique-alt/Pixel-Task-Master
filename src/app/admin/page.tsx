@@ -66,7 +66,9 @@ export default function AdminDashboard() {
   };
 
   const ignoredTasks = today
-    ? clients.filter(c => c.status === "Pending" && c.endDate <= today && !c.comments?.trim())
+    ? clients.filter(
+        c => (c.status === "Pending" || c.status === "In Progress") && c.endDate < today
+      )
     : [];
 
   return (
@@ -185,20 +187,28 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Ignored/Overdue Tasks Alert */}
+          {/* Overdue In-Progress & Pending Tasks Alert */}
           {ignoredTasks.length > 0 && (
             <div className="bg-red-50 border-l-4 border-red-500 p-5 rounded-r-xl shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <AlertCircle className="text-red-600 w-5 h-5" />
-                <h3 className="font-bold text-red-900 text-lg">Ignored by Members (Overdue or Due Today without Updates)</h3>
+                <h3 className="font-bold text-red-900 text-lg">Overdue Tasks ({ignoredTasks.length}) — Pending / In Progress from Past Dates</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {ignoredTasks.map(t => (
                   <div key={t.id} className="flex flex-col bg-white p-4 rounded-lg border border-red-100 shadow-sm">
-                    <p className="font-bold text-sm text-gray-800">{t.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Assigned to: <strong className="text-gray-800">{t.member}</strong></p>
-                    <div className="mt-2 text-[10px] bg-red-100 text-red-700 px-2 py-1 rounded font-bold self-start">
-                      No Comment / Action Taken
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-bold text-sm text-gray-800 truncate">{t.name}</p>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                        t.status === "In Progress" ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-700"
+                      }`}>
+                        {t.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Assigned to: <strong className="text-gray-800">{t.member || "Unassigned"}</strong></p>
+                    <div className="mt-2 text-[10px] bg-red-50 text-red-700 px-2 py-1 rounded font-bold flex items-center justify-between">
+                      <span>Deadline passed: {t.endDate}</span>
+                      {t.comments ? <span className="text-gray-600 italic truncate max-w-[150px]">&ldquo;{t.comments}&rdquo;</span> : <span>No Remarks</span>}
                     </div>
                   </div>
                 ))}

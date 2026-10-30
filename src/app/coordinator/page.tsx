@@ -97,9 +97,9 @@ export default function CoordinatorTasksPage() {
     if (memberFilter !== "all" && t.member !== memberFilter) return false;
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (viewFilter === "daily" && today) {
-      if (!(t.endDate <= today && t.status === "Pending")) return false;
+      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
     } else if (viewFilter === "overdue" && today) {
-      if (!(t.endDate < today && t.status === "Pending")) return false;
+      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
     } else if (viewFilter === "regular") {
       if (t.taskType !== "Regular") return false;
     } else if (viewFilter === "onetime") {

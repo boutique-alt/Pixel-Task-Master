@@ -119,9 +119,9 @@ export default function AdminTasksPage() {
   const pendingTasks = scopedTasks.filter((t) => t.status === "Pending").length;
   const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
-  // Tasks due today or overdue without member comments
+  // Overdue tasks: Pending or In Progress with endDate < today (yesterday or earlier)
   const ignoredTasks = today
-    ? clients.filter((c) => c.status === "Pending" && c.endDate <= today && !c.comments?.trim())
+    ? clients.filter((c) => (c.status === "Pending" || c.status === "In Progress") && c.endDate < today)
     : [];
 
   // Filtered tasks for the table
@@ -129,9 +129,9 @@ export default function AdminTasksPage() {
     if (memberFilter !== "all" && t.member !== memberFilter) return false;
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (viewFilter === "daily" && today) {
-      if (!(t.endDate <= today && t.status === "Pending")) return false;
+      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
     } else if (viewFilter === "overdue" && today) {
-      if (!(t.endDate < today && t.status === "Pending")) return false;
+      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
     } else if (viewFilter === "regular") {
       if (t.taskType !== "Regular") return false;
     } else if (viewFilter === "onetime") {
@@ -336,7 +336,7 @@ export default function AdminTasksPage() {
         </div>
       </div>
 
-      {/* Ignored / Missing Update Alert Banner */}
+      {/* Overdue In-Progress & Pending Tasks Alert */}
       {ignoredTasks.length > 0 && (
         <div className="bg-[#FFF8ED] border border-[#FFEDD5] rounded-[24px] p-5 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
@@ -346,10 +346,10 @@ export default function AdminTasksPage() {
               </div>
               <div>
                 <h3 className="font-extrabold text-[#10254F] text-[15px]">
-                  Attention Required: Pending Tasks Due Today / Overdue Without Member Remarks ({ignoredTasks.length})
+                  Attention Required: Overdue Pending & In Progress Tasks ({ignoredTasks.length})
                 </h3>
                 <p className="text-[12px] text-[#64748B] font-medium">
-                  These tasks have reached their deadline, are still marked Pending, and have no comment from the assigned member.
+                  These tasks had their deadline yesterday or earlier and are still In Progress or Pending.
                 </p>
               </div>
             </div>
@@ -360,13 +360,22 @@ export default function AdminTasksPage() {
                 <div className="overflow-hidden">
                   <div className="flex items-center gap-2">
                     <p className="font-extrabold text-[13px] text-[#10254F] truncate">{t.name}</p>
-                    <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded bg-[#FEF2F2] text-[#DC2626] border border-[#FEE2E2]">
-                      No Comment
+                    <span className={`px-2 py-0.5 text-[9px] font-extrabold uppercase rounded border ${
+                      t.status === "In Progress"
+                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                        : "bg-[#FEF2F2] text-[#DC2626] border-[#FEE2E2]"
+                    }`}>
+                      {t.status}
                     </span>
                   </div>
                   <p className="text-[11px] text-[#64748B] font-medium mt-1 truncate">
-                    Member: <strong className="text-[#1677FF]">{t.member || "Unassigned"}</strong> • Due: <strong className="text-[#10254F]">{t.endDate}</strong>
+                    Member: <strong className="text-[#1677FF]">{t.member || "Unassigned"}</strong> • Deadline: <strong className="text-[#DC2626]">{t.endDate}</strong>
                   </p>
+                  {t.comments && (
+                    <p className="text-[10px] text-gray-500 italic mt-0.5 truncate">
+                      Remark: &ldquo;{t.comments}&rdquo;
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => setEditingClient(t)}
