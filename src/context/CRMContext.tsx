@@ -1079,20 +1079,21 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   // --- TASK CRUD ---
   const updateStatus = (id: string, status: Client["status"], user: string) => {
+    const updatedBy = user?.trim() || "User";
     const target = clients.find((c) => c.id === id);
     if (target) {
-      addActivity(`${user} changed status of ${target.name} to ${status}`, "status");
+      addActivity(`${updatedBy} changed status of ${target.name} to ${status}`, "status");
       let received = target.received;
       if (status === "Done") received = target.expected;
       if (status === "Can't Do") received = "0";
-      upsertTaskDb({ ...target, status, received });
+      upsertTaskDb({ ...target, status, received, statusUpdatedBy: updatedBy });
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id) {
         let received = c.received;
         if (status === "Done") received = c.expected;
         if (status === "Can't Do") received = "0";
-        return { ...c, status, received };
+        return { ...c, status, received, statusUpdatedBy: updatedBy };
       }
       return c;
     }));

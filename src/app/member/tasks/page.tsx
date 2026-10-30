@@ -631,24 +631,31 @@ export default function MemberTasks() {
 
                       {/* Status Dropdown with 1-Click Fast Toggle */}
                       <td className="py-4 px-4 text-center">
-                        <select
-                          value={t.status}
-                          onChange={(e) => handleStatusChange(t.id, e.target.value as Client["status"])}
-                          className={`text-[12px] font-black rounded-xl px-3 py-1.5 border outline-none cursor-pointer shadow-xs transition-all ${
-                            t.status === "Done"
-                              ? "bg-emerald-500 text-white border-emerald-600 focus:ring-2 focus:ring-emerald-300"
-                              : t.status === "In Progress"
-                              ? "bg-blue-500 text-white border-blue-600 focus:ring-2 focus:ring-blue-300"
-                              : t.status === "Can't Do"
-                              ? "bg-rose-500 text-white border-rose-600 focus:ring-2 focus:ring-rose-300"
-                              : "bg-amber-100 text-amber-900 border-amber-300 focus:ring-2 focus:ring-amber-200"
-                          }`}
-                        >
-                          <option value="Pending" className="bg-white text-gray-900">⏳ Pending</option>
-                          <option value="In Progress" className="bg-white text-gray-900">⚡ In Progress</option>
-                          <option value="Done" className="bg-white text-gray-900">✅ Done</option>
-                          <option value="Can't Do" className="bg-white text-gray-900">❌ Can't Do</option>
-                        </select>
+                        <div className="flex flex-col items-center gap-1">
+                          <select
+                            value={t.status}
+                            onChange={(e) => handleStatusChange(t.id, e.target.value as Client["status"])}
+                            className={`text-[12px] font-black rounded-xl px-3 py-1.5 border outline-none cursor-pointer shadow-xs transition-all ${
+                              t.status === "Done"
+                                ? "bg-emerald-500 text-white border-emerald-600 focus:ring-2 focus:ring-emerald-300"
+                                : t.status === "In Progress"
+                                ? "bg-blue-500 text-white border-blue-600 focus:ring-2 focus:ring-blue-300"
+                                : t.status === "Can't Do"
+                                ? "bg-rose-500 text-white border-rose-600 focus:ring-2 focus:ring-rose-300"
+                                : "bg-amber-100 text-amber-900 border-amber-300 focus:ring-2 focus:ring-amber-200"
+                            }`}
+                          >
+                            <option value="Pending" className="bg-white text-gray-900">⏳ Pending</option>
+                            <option value="In Progress" className="bg-white text-gray-900">⚡ In Progress</option>
+                            <option value="Done" className="bg-white text-gray-900">✅ Done</option>
+                            <option value="Can't Do" className="bg-white text-gray-900">❌ Can't Do</option>
+                          </select>
+                          {t.statusUpdatedBy && (
+                            <span className="text-[10px] font-semibold text-[#64748B] truncate max-w-[130px]" title={`Updated by ${t.statusUpdatedBy}`}>
+                              <span className="text-[#1677FF] font-bold">✎</span> by {t.statusUpdatedBy}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Remarks Field (Live Interactive Editor + Presets) */}

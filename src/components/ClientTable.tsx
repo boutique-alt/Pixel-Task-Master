@@ -18,6 +18,7 @@ export type Client = {
   endDate: string;
   reason?: string;
   comments?: string;
+  statusUpdatedBy?: string;
 };
 
 interface ClientTableProps {
@@ -154,57 +155,66 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
 
                   {/* Status Column */}
                   <td className="py-4 px-2">
-                    {(isAdmin || isCoordinator) && !onStatusChange ? (
-                      <span className={`px-2.5 py-1 text-[11px] uppercase tracking-wider rounded-full font-bold whitespace-nowrap ${
-                        c.status === 'Done' ? 'bg-[#08B981]/10 text-[#08B981]' :
-                        c.status === 'Can\'t Do' ? 'bg-red-100 text-red-700' :
-                        c.status === 'In Progress' ? 'bg-[#1677FF]/10 text-[#1677FF]' :
-                        'bg-[#FF7900]/10 text-[#FF7900]'
-                      }`}>
-                        {c.status}
-                      </span>
-                    ) : (
-                      <div className="relative w-max">
-                        <select
-                          value={c.status}
-                          onChange={(e) => {
-                            const newStatus = e.target.value as Client["status"];
-                            if (!isAdmin && !isCoordinator && newStatus === "Pending" && !c.comments?.trim()) {
-                              alert("⚠️ Action Blocked: You must add a comment explaining why this task is pending before changing its status.");
-                              return;
-                            }
-                            onStatusChange?.(c.id, newStatus);
-                          }}
-                          className={`appearance-none text-[12px] font-bold rounded-lg pl-8 pr-7 py-1.5 border outline-none cursor-pointer whitespace-nowrap ${
-                            c.status === 'Done' ? 'bg-[#08B981]/10 text-[#08B981] border-[#08B981]/20 focus:ring-1 focus:ring-[#08B981]' :
-                            c.status === 'Can\'t Do' ? 'bg-red-50 text-red-700 border-red-200 focus:ring-1 focus:ring-red-500' :
-                            c.status === 'In Progress' ? 'bg-[#1677FF]/10 text-[#1677FF] border-[#1677FF]/20 focus:ring-1 focus:ring-[#1677FF]' :
-                            'bg-[#FFF8ED] text-[#FF7900] border-[#FFEDD5] focus:ring-1 focus:ring-[#FF7900]'
-                          }`}
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Done">Done</option>
-                          <option value="Can't Do">Can't Do</option>
-                        </select>
-                        {/* Fake Icon left */}
-                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                          {c.status === 'Done' ? (
-                            <svg className="text-[#08B981]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          ) : c.status === 'Pending' ? (
-                            <svg className="text-[#FF7900]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l2-9 5 18 3-10h6"></path></svg>
-                          ) : (
-                            <svg className="text-[#1677FF]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                          )}
+                    <div className="flex flex-col gap-1">
+                      {(isAdmin || isCoordinator) && !onStatusChange ? (
+                        <span className={`px-2.5 py-1 text-[11px] uppercase tracking-wider rounded-full font-bold whitespace-nowrap ${
+                          c.status === 'Done' ? 'bg-[#08B981]/10 text-[#08B981]' :
+                          c.status === 'Can\'t Do' ? 'bg-red-100 text-red-700' :
+                          c.status === 'In Progress' ? 'bg-[#1677FF]/10 text-[#1677FF]' :
+                          'bg-[#FF7900]/10 text-[#FF7900]'
+                        }`}>
+                          {c.status}
+                        </span>
+                      ) : (
+                        <div className="relative w-max">
+                          <select
+                            value={c.status}
+                            onChange={(e) => {
+                              const newStatus = e.target.value as Client["status"];
+                              if (!isAdmin && !isCoordinator && newStatus === "Pending" && !c.comments?.trim()) {
+                                alert("⚠️ Action Blocked: You must add a comment explaining why this task is pending before changing its status.");
+                                return;
+                              }
+                              onStatusChange?.(c.id, newStatus);
+                            }}
+                            className={`appearance-none text-[12px] font-bold rounded-lg pl-8 pr-7 py-1.5 border outline-none cursor-pointer whitespace-nowrap ${
+                              c.status === 'Done' ? 'bg-[#08B981]/10 text-[#08B981] border-[#08B981]/20 focus:ring-1 focus:ring-[#08B981]' :
+                              c.status === 'Can\'t Do' ? 'bg-red-50 text-red-700 border-red-200 focus:ring-1 focus:ring-red-500' :
+                              c.status === 'In Progress' ? 'bg-[#1677FF]/10 text-[#1677FF] border-[#1677FF]/20 focus:ring-1 focus:ring-[#1677FF]' :
+                              'bg-[#FFF8ED] text-[#FF7900] border-[#FFEDD5] focus:ring-1 focus:ring-[#FF7900]'
+                            }`}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Done">Done</option>
+                            <option value="Can't Do">Can't Do</option>
+                          </select>
+                          {/* Fake Icon left */}
+                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                            {c.status === 'Done' ? (
+                              <svg className="text-[#08B981]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            ) : c.status === 'Pending' ? (
+                              <svg className="text-[#FF7900]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h4l2-9 5 18 3-10h6"></path></svg>
+                            ) : (
+                              <svg className="text-[#1677FF]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            )}
+                          </div>
+                          {/* Fake Arrow right */}
+                          <svg className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 ${
+                            c.status === 'Done' ? 'text-[#08B981]' :
+                            c.status === 'Pending' ? 'text-[#FF7900]' :
+                            'text-[#1677FF]'
+                          }`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                         </div>
-                        {/* Fake Arrow right */}
-                        <svg className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 ${
-                          c.status === 'Done' ? 'text-[#08B981]' :
-                          c.status === 'Pending' ? 'text-[#FF7900]' :
-                          'text-[#1677FF]'
-                        }`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                      </div>
-                    )}
+                      )}
+
+                      {/* Who last updated this status */}
+                      {c.statusUpdatedBy && (
+                        <p className="text-[10px] font-semibold text-[#64748B] flex items-center gap-1 pl-0.5 truncate max-w-[140px]" title={`Status changed by ${c.statusUpdatedBy}`}>
+                          <span className="text-[#1677FF] font-bold">✎</span> by {c.statusUpdatedBy}
+                        </p>
+                      )}
+                    </div>
                   </td>
 
                   {/* Comments Field */}

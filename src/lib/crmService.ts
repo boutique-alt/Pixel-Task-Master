@@ -128,26 +128,43 @@ export async function fetchTasksDb(): Promise<Client[] | null> {
     console.error("fetchTasksDb error:", error);
     return null;
   }
-  return data.map((d: any) => ({
-    id: d.id,
-    name: d.name,
-    phone: d.phone || "",
-    category: d.category || "",
-    taskDetails: d.task_details || "",
-    taskType: d.task_type || "Regular",
-    member: d.member || "",
-    startDate: d.start_date || "",
-    endDate: d.end_date || "",
-    expected: d.expected || "0",
-    received: d.received || "0",
-    status: d.status || "Pending",
-    comments: d.comments || "",
-    reason: d.reason || "",
-  }));
+  return data.map((d: any) => {
+    // Extract statusUpdatedBy if safely embedded in reason or dedicated column
+    let statusUpdatedBy = d.status_updated_by || "";
+    let cleanReason = d.reason || "";
+    if (!statusUpdatedBy && cleanReason && cleanReason.startsWith("UPD_BY:")) {
+      const parts = cleanReason.split("|");
+      statusUpdatedBy = parts[0].replace("UPD_BY:", "");
+      cleanReason = parts.slice(1).join("|");
+    }
+
+    return {
+      id: d.id,
+      name: d.name,
+      phone: d.phone || "",
+      category: d.category || "",
+      taskDetails: d.task_details || "",
+      taskType: d.task_type || "Regular",
+      member: d.member || "",
+      startDate: d.start_date || "",
+      endDate: d.end_date || "",
+      expected: d.expected || "0",
+      received: d.received || "0",
+      status: d.status || "Pending",
+      comments: d.comments || "",
+      reason: cleanReason,
+      statusUpdatedBy: statusUpdatedBy || undefined,
+    };
+  });
 }
 
 export async function upsertTaskDb(task: Client) {
-  const { error } = await supabase.from("tasks").upsert({
+  // Embed statusUpdatedBy into reason if present (safe across all DB schemas)
+  const encodedReason = task.statusUpdatedBy
+    ? `UPD_BY:${task.statusUpdatedBy}|${task.reason || ""}`
+    : task.reason || "";
+
+  const payload: any = {
     id: task.id,
     name: task.name,
     phone: task.phone,
@@ -161,8 +178,10 @@ export async function upsertTaskDb(task: Client) {
     received: task.received || "0",
     status: task.status || "Pending",
     comments: task.comments || "",
-    reason: task.reason || "",
-  });
+    reason: encodedReason,
+  };
+
+  const { error } = await supabase.from("tasks").upsert(payload);
   if (error) console.error("upsertTaskDb error:", error);
 }
 
