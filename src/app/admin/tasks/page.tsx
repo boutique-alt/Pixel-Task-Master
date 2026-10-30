@@ -56,6 +56,7 @@ export default function AdminTasksPage() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [memberFilter, setMemberFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
   const [viewFilter, setViewFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [today, setToday] = useState("");
@@ -90,6 +91,14 @@ export default function AdminTasksPage() {
   }, []);
 
   const memberNames = members.map((m) => m.name);
+
+  // Unique client names from active tasks and client directory for filter dropdown
+  const uniqueClientNames = Array.from(
+    new Set([
+      ...directoryClients.map((dc) => dc.name.trim()),
+      ...clients.map((c) => c.name.trim()),
+    ])
+  ).filter(Boolean).sort();
 
   // Filter tasks based on active date filter (defaults to today)
   const dateFilteredTasks = clients.filter((t) => {
@@ -127,6 +136,7 @@ export default function AdminTasksPage() {
   // Filtered tasks for the table
   const displayedTasks = dateFilteredTasks.filter((t) => {
     if (memberFilter !== "all" && t.member !== memberFilter) return false;
+    if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (viewFilter === "daily" && today) {
       if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
@@ -488,6 +498,22 @@ export default function AdminTasksPage() {
                       ))}
                     </select>
                     <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1677FF]" size={15} />
+                    <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </div>
+
+                  {/* Client Filter */}
+                  <div className="relative">
+                    <select
+                      value={clientFilter}
+                      onChange={(e) => setClientFilter(e.target.value)}
+                      className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer max-w-[200px]"
+                    >
+                      <option value="all">All Clients ({uniqueClientNames.length})</option>
+                      {uniqueClientNames.map((cName) => (
+                        <option key={cName} value={cName}>{cName}</option>
+                      ))}
+                    </select>
+                    <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B5CF6]" size={15} />
                     <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                   </div>
 

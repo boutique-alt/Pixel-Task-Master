@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { X, AlertCircle } from "lucide-react";
+import { X, AlertCircle, Briefcase } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
 import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
@@ -14,6 +14,7 @@ export default function AdminDashboard() {
   const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState("");
   const [today, setToday] = useState("");
+  const [clientFilter, setClientFilter] = useState("all");
   const [addClientName, setAddClientName] = useState("");
   const [addClientPhone, setAddClientPhone] = useState("");
   const [addClientCategory, setAddClientCategory] = useState("Website Creation");
@@ -38,13 +39,22 @@ export default function AdminDashboard() {
     setSelectedDate(todayStr);
   }, []);
 
-  // Filter tasks based on active date filter (defaults to today)
+  // Filter tasks based on active date filter and client filter (defaults to today)
   const displayedTasks = clients.filter((t) => {
+    if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
     if (dateFilterMode === "all") return true;
     const targetDate = dateFilterMode === "today" ? today : selectedDate;
     if (!targetDate) return true;
     return isTaskOnDate(t, targetDate);
   });
+
+  // Unique client names for filter dropdown
+  const uniqueClientNames = Array.from(
+    new Set([
+      ...directoryClients.map((dc) => dc.name.trim()),
+      ...clients.map((c) => c.name.trim()),
+    ])
+  ).filter(Boolean).sort();
 
   const todayTasksCount = today
     ? clients.filter((t) => isTaskOnDate(t, today)).length
@@ -228,15 +238,34 @@ export default function AdminDashboard() {
               </Link>
             </div>
 
-            <TaskDateFilterBar
-              dateFilterMode={dateFilterMode}
-              onModeChange={setDateFilterMode}
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-              todayDate={today}
-              todayTasksCount={todayTasksCount}
-              totalAllTasksCount={clients.length}
-            />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <TaskDateFilterBar
+                dateFilterMode={dateFilterMode}
+                onModeChange={setDateFilterMode}
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                todayDate={today}
+                todayTasksCount={todayTasksCount}
+                totalAllTasksCount={clients.length}
+                className="flex-1"
+              />
+
+              {/* Client Filter Dropdown */}
+              <div className="relative shrink-0">
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-2xl outline-none hover:bg-gray-50 transition-colors shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer"
+                >
+                  <option value="all">All Clients ({uniqueClientNames.length})</option>
+                  {uniqueClientNames.map((cName) => (
+                    <option key={cName} value={cName}>{cName}</option>
+                  ))}
+                </select>
+                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B5CF6]" size={15} />
+                <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+            </div>
 
             <ClientTable 
               clients={displayedTasks} 
