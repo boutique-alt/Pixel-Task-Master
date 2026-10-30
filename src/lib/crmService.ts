@@ -181,8 +181,20 @@ export async function upsertTaskDb(task: Client) {
     reason: encodedReason,
   };
 
+  // If DB table has status_updated_by column, also send it
+  try {
+    if (task.statusUpdatedBy) {
+      payload.status_updated_by = task.statusUpdatedBy;
+    }
+  } catch {}
+
   const { error } = await supabase.from("tasks").upsert(payload);
-  if (error) console.error("upsertTaskDb error:", error);
+  if (error) {
+    // If column status_updated_by does not exist, retry without it
+    delete payload.status_updated_by;
+    const { error: retryErr } = await supabase.from("tasks").upsert(payload);
+    if (retryErr) console.error("upsertTaskDb retry error:", retryErr);
+  }
 }
 
 export async function deleteTaskDb(id: string) {
