@@ -547,8 +547,13 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-export function isTaskOnDate(t: { startDate?: string; endDate?: string }, dateStr: string): boolean {
+export function isTaskOnDate(t: { taskType?: string; startDate?: string; endDate?: string }, dateStr: string): boolean {
   if (!dateStr) return true;
+  // Rule 1: Regular tasks belong to everyday routine and are automatically assigned/present on every date!
+  if (t.taskType === "Regular") {
+    return true;
+  }
+  // Rule 2: Scheduled / One-Time tasks
   if (t.startDate === dateStr || t.endDate === dateStr) return true;
   if (t.startDate && t.endDate && t.startDate <= dateStr && t.endDate >= dateStr) return true;
   return false;

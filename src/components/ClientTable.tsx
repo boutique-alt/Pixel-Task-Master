@@ -107,10 +107,23 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
                     </div>
                   </td>
                   <td className="py-4 px-2">
-                    <div className="flex items-center gap-1.5 text-[#14233F] text-[12px] font-bold bg-[#F4F7FC] border border-[#E3EBF5] px-2 py-1.5 rounded-lg w-max">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                      {c.startDate} to {c.endDate}
-                    </div>
+                    {c.taskType === "Regular" ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-[#10B981]/10 text-[#059669] border border-[#10B981]/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span>
+                        Regular Daily
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[#14233F] text-[12px] font-bold bg-[#F4F7FC] border border-[#E3EBF5] px-2 py-1.5 rounded-lg w-max">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        {c.startDate && c.endDate && c.startDate === c.endDate ? (
+                          <span>{c.endDate}</span>
+                        ) : c.startDate && c.endDate ? (
+                          <span>{c.startDate} to {c.endDate}</span>
+                        ) : (
+                          <span>{c.endDate || c.startDate || "No date"}</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   
                   {/* Assignee Field */}

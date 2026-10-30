@@ -615,11 +615,15 @@ export default function MemberTasks() {
                               <p className="text-[13px] font-bold text-[#1E293B] leading-relaxed break-words whitespace-normal">
                                 {t.taskDetails || "No specific instructions provided yet."}
                               </p>
-                              {t.endDate && (
-                                <p className="text-[10px] font-extrabold text-[#64748B] mt-1.5 flex items-center gap-1">
-                                  <Calendar size={11} /> Deadline: {t.endDate}
+                              {t.taskType === "Regular" ? (
+                                <p className="text-[10px] font-extrabold text-[#059669] mt-1.5 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]"></span> Regular Daily Task
                                 </p>
-                              )}
+                              ) : t.endDate ? (
+                                <p className="text-[10px] font-extrabold text-[#64748B] mt-1.5 flex items-center gap-1">
+                                  <Calendar size={11} /> {t.startDate && t.endDate && t.startDate !== t.endDate ? `${t.startDate} to ${t.endDate}` : `Date: ${t.endDate}`}
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                         </div>
