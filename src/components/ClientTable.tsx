@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Edit, Trash2, MessageCircle } from "lucide-react";
+import { getLocalDateString } from "@/context/CRMContext";
 
 export type Client = {
   id: string;
@@ -40,7 +41,7 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
   const showFinancials = isAdmin; // Hide financial figures from coordinator
 
   useEffect(() => {
-    setToday(new Date().toISOString().split("T")[0]);
+    setToday(getLocalDateString());
   }, []);
 
   return (
@@ -68,7 +69,15 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
             </tr>
           ) : (
             clients.map((c) => {
-              const isOverdue = today && (c.status === "Pending" || c.status === "In Progress") && c.endDate < today;
+              // Only past dates (yesterday or earlier) can be overdue; today's pending tasks are NOT overdue!
+              // Regular tasks are ongoing everyday routine work and never marked overdue!
+              const isOverdue = Boolean(
+                today &&
+                c.taskType !== "Regular" &&
+                (c.status === "Pending" || c.status === "In Progress") &&
+                c.endDate &&
+                c.endDate < today
+              );
 
               return (
                 <tr key={c.id} className="hover:bg-[#F4F7FC]/50 transition-colors group">
