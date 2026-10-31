@@ -15,10 +15,10 @@ export default function AdminClientsPage() {
     const q = searchQuery.toLowerCase();
     return (
       dc.name.toLowerCase().includes(q) ||
-      dc.phone.toLowerCase().includes(q) ||
-      dc.email?.toLowerCase().includes(q) ||
-      dc.company?.toLowerCase().includes(q) ||
-      dc.category.toLowerCase().includes(q)
+      (dc.phone || "").toLowerCase().includes(q) ||
+      (dc.email || "").toLowerCase().includes(q) ||
+      (dc.company || "").toLowerCase().includes(q) ||
+      (dc.category || "").toLowerCase().includes(q)
     );
   });
 
@@ -155,11 +155,11 @@ export default function AdminClientsPage() {
                 addDirectoryClient(
                   {
                     id: "c_" + Math.random().toString(36).substr(2, 9),
-                    name: formData.get("name") as string,
-                    company: formData.get("company") as string,
-                    phone: formData.get("phone") as string,
-                    email: formData.get("email") as string,
-                    category: formData.get("category") as string,
+                    name: (formData.get("name") as string)?.trim(),
+                    company: (formData.get("company") as string)?.trim() || "",
+                    phone: (formData.get("phone") as string)?.trim() || "",
+                    email: (formData.get("email") as string)?.trim() || "",
+                    category: (formData.get("category") as string)?.trim() || "Website Creation",
                     status: (formData.get("status") as "Active" | "Inactive") || "Active",
                   },
                   "Admin"
@@ -173,37 +173,25 @@ export default function AdminClientsPage() {
                 <input required name="name" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
               </div>
               <div>
-                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand</label>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand (Optional)</label>
                 <input name="company" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number *</label>
-                  <input required name="phone" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number (Optional)</label>
+                  <input name="phone" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email</label>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email (Optional)</label>
                   <input name="email" type="email" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category *</label>
-                  <select required name="category" defaultValue="Website Creation" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
-                  <select name="status" defaultValue="Active" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
+                <select name="status" defaultValue="Active" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
               <div className="pt-4 mt-4 border-t border-[#E3EAF5] flex justify-end gap-3">
                 <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-5 py-2 text-[13px] text-[#64748B] hover:bg-gray-100 rounded-xl font-bold">Cancel</button>
@@ -231,11 +219,11 @@ export default function AdminClientsPage() {
                 updateDirectoryClient(
                   editingClient.id,
                   {
-                    name: formData.get("name") as string,
-                    company: formData.get("company") as string,
-                    phone: formData.get("phone") as string,
-                    email: formData.get("email") as string,
-                    category: formData.get("category") as string,
+                    name: (formData.get("name") as string)?.trim(),
+                    company: (formData.get("company") as string)?.trim() || "",
+                    phone: (formData.get("phone") as string)?.trim() || "",
+                    email: (formData.get("email") as string)?.trim() || "",
+                    category: editingClient.category || "Website Creation",
                     status: formData.get("status") as "Active" | "Inactive",
                   },
                   "Admin"
@@ -249,40 +237,25 @@ export default function AdminClientsPage() {
                 <input required name="name" defaultValue={editingClient.name} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
               </div>
               <div>
-                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand</label>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand (Optional)</label>
                 <input name="company" defaultValue={editingClient.company || ""} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number *</label>
-                  <input required name="phone" defaultValue={editingClient.phone} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number (Optional)</label>
+                  <input name="phone" defaultValue={editingClient.phone || ""} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email</label>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email (Optional)</label>
                   <input name="email" defaultValue={editingClient.email || ""} type="email" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category *</label>
-                  <select required name="category" defaultValue={editingClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                    {editingClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingClient.category) && (
-                      <option value={editingClient.category}>{editingClient.category}</option>
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
-                  <select name="status" defaultValue={editingClient.status || "Active"} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
+                <select name="status" defaultValue={editingClient.status || "Active"} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
               <div className="pt-4 mt-4 border-t border-[#E3EAF5] flex justify-end gap-3">
                 <button type="button" onClick={() => setEditingClient(null)} className="px-5 py-2 text-[13px] text-[#64748B] hover:bg-gray-100 rounded-xl font-bold">Cancel</button>

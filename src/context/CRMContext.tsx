@@ -85,10 +85,10 @@ export type Member = {
 export type DirectoryClient = {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   email?: string;
   company?: string;
-  category: string;
+  category?: string;
   address?: string;
   status?: "Active" | "Inactive";
 };

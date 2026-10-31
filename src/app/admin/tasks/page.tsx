@@ -180,10 +180,10 @@ export default function AdminTasksPage() {
     const q = searchQuery.toLowerCase();
     return (
       dc.name.toLowerCase().includes(q) ||
-      dc.phone.toLowerCase().includes(q) ||
-      dc.email?.toLowerCase().includes(q) ||
-      dc.company?.toLowerCase().includes(q) ||
-      dc.category.toLowerCase().includes(q)
+      (dc.phone || "").toLowerCase().includes(q) ||
+      (dc.email || "").toLowerCase().includes(q) ||
+      (dc.company || "").toLowerCase().includes(q) ||
+      (dc.category || "").toLowerCase().includes(q)
     );
   });
 
@@ -1199,11 +1199,11 @@ export default function AdminTasksPage() {
                 addDirectoryClient(
                   {
                     id: "c_" + Math.random().toString(36).substr(2, 9),
-                    name: formData.get("name") as string,
-                    company: formData.get("company") as string,
-                    phone: formData.get("phone") as string,
-                    email: formData.get("email") as string,
-                    category: formData.get("category") as string,
+                    name: (formData.get("name") as string)?.trim(),
+                    company: (formData.get("company") as string)?.trim() || "",
+                    phone: (formData.get("phone") as string)?.trim() || "",
+                    email: (formData.get("email") as string)?.trim() || "",
+                    category: (formData.get("category") as string)?.trim() || "Website Creation",
                     status: (formData.get("status") as "Active" | "Inactive") || "Active",
                   },
                   "Admin"
@@ -1218,39 +1218,27 @@ export default function AdminTasksPage() {
               </div>
 
               <div>
-                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand Name</label>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand Name (Optional)</label>
                 <input name="company" placeholder="e.g. Mahmood Group" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number *</label>
-                  <input required name="phone" placeholder="+1 (555) 234-5678" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number (Optional)</label>
+                  <input name="phone" placeholder="+1 (555) 234-5678" type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email Address</label>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email Address (Optional)</label>
                   <input name="email" placeholder="client@company.com" type="email" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Primary Category *</label>
-                  <select required name="category" defaultValue="Website Creation" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
-                  <select name="status" defaultValue="Active" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
+                <select name="status" defaultValue="Active" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
 
               <div className="pt-4 mt-4 border-t border-[#E3EAF5] flex justify-end gap-3">
@@ -1287,11 +1275,11 @@ export default function AdminTasksPage() {
                 updateDirectoryClient(
                   editingDirectoryClient.id,
                   {
-                    name: formData.get("name") as string,
-                    company: formData.get("company") as string,
-                    phone: formData.get("phone") as string,
-                    email: formData.get("email") as string,
-                    category: formData.get("category") as string,
+                    name: (formData.get("name") as string)?.trim(),
+                    company: (formData.get("company") as string)?.trim() || "",
+                    phone: (formData.get("phone") as string)?.trim() || "",
+                    email: (formData.get("email") as string)?.trim() || "",
+                    category: editingDirectoryClient.category || "Website Creation",
                     status: formData.get("status") as "Active" | "Inactive",
                   },
                   "Admin"
@@ -1306,42 +1294,27 @@ export default function AdminTasksPage() {
               </div>
 
               <div>
-                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand Name</label>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Company / Brand Name (Optional)</label>
                 <input name="company" defaultValue={editingDirectoryClient.company || ""} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number *</label>
-                  <input required name="phone" defaultValue={editingDirectoryClient.phone} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number (Optional)</label>
+                  <input name="phone" defaultValue={editingDirectoryClient.phone || ""} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email Address</label>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Email Address (Optional)</label>
                   <input name="email" defaultValue={editingDirectoryClient.email || ""} type="email" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Primary Category *</label>
-                  <select required name="category" defaultValue={editingDirectoryClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white font-medium">
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                    {editingDirectoryClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingDirectoryClient.category) && (
-                      <option value={editingDirectoryClient.category}>{editingDirectoryClient.category}</option>
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
-                  <select name="status" defaultValue={editingDirectoryClient.status || "Active"} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Status</label>
+                <select name="status" defaultValue={editingDirectoryClient.status || "Active"} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#8B5CF6] outline-none bg-white">
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
 
               <div className="pt-4 mt-4 border-t border-[#E3EAF5] flex justify-end gap-3">
