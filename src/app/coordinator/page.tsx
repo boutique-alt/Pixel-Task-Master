@@ -393,9 +393,8 @@ export default function CoordinatorTasksPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Client Phone Number *</label>
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Client Phone Number (Optional)</label>
                   <input
-                    required
                     name="phone"
                     value={taskClientPhone}
                     onChange={(e) => setTaskClientPhone(e.target.value)}
@@ -406,30 +405,12 @@ export default function CoordinatorTasksPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category *</label>
-                  <select
-                    required
-                    name="category"
-                    value={taskClientCategory}
-                    onChange={(e) => setTaskClientCategory(e.target.value)}
-                    className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium"
-                  >
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Task Type *</label>
-                  <select required name="taskType" defaultValue="Regular" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium">
-                    <option value="Regular">Regular</option>
-                    <option value="One-Time">One-Time</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Task Type *</label>
+                <select required name="taskType" defaultValue="Regular" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium">
+                  <option value="Regular">Regular</option>
+                  <option value="One-Time">One-Time</option>
+                </select>
               </div>
 
               <div>
@@ -533,32 +514,17 @@ export default function CoordinatorTasksPage() {
                   <input required name="name" defaultValue={editingClient.name} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number</label>
-                  <input required name="phone" defaultValue={editingClient.phone} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
+                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Phone Number (Optional)</label>
+                  <input name="phone" defaultValue={editingClient.phone || ""} type="text" className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none" />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Category</label>
-                  <select required name="category" defaultValue={editingClient.category} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium">
-                    {CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                    {editingClient.category && !CATEGORY_OPTIONS.some((o) => o.value === editingClient.category) && (
-                      <option value={editingClient.category}>{editingClient.category}</option>
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[12px] font-bold text-[#10254F] mb-1">Task Type</label>
-                  <select required name="taskType" defaultValue={editingClient.taskType || "Regular"} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium">
-                    <option value="Regular">Regular</option>
-                    <option value="One-Time">One-Time</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[12px] font-bold text-[#10254F] mb-1">Task Type</label>
+                <select required name="taskType" defaultValue={editingClient.taskType || "Regular"} className="w-full px-3.5 py-2 text-[13px] border border-[#E3EAF5] rounded-xl focus:ring-2 focus:ring-[#1677FF] outline-none bg-white font-medium">
+                  <option value="Regular">Regular</option>
+                  <option value="One-Time">One-Time</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
