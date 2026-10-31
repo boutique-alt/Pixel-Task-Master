@@ -633,7 +633,6 @@ export default function AdminTasksPage() {
                   <tr className="border-b border-[#E3EBF5] text-[#64748B] text-[10px] uppercase tracking-wider font-bold bg-[#F8FAFC]">
                     <th className="py-3.5 px-4">Client / Brand</th>
                     <th className="py-3.5 px-3">Contact Info</th>
-                    <th className="py-3.5 px-3">Default Category</th>
                     <th className="py-3.5 px-3">Linked Tasks</th>
                     <th className="py-3.5 px-3">Total Expected / Received</th>
                     <th className="py-3.5 px-3">Status</th>
@@ -672,7 +671,7 @@ export default function AdminTasksPage() {
                           <td className="py-4 px-3">
                             <div className="space-y-1">
                               <p className="text-[12px] font-bold text-[#10254F] flex items-center gap-1.5">
-                                <Phone size={12} className="text-[#1677FF]" /> {dc.phone}
+                                <Phone size={12} className="text-[#1677FF]" /> {dc.phone || "No phone"}
                               </p>
                               {dc.email && (
                                 <p className="text-[11px] font-medium text-[#64748B] flex items-center gap-1.5">
@@ -680,11 +679,6 @@ export default function AdminTasksPage() {
                                 </p>
                               )}
                             </div>
-                          </td>
-                          <td className="py-4 px-3">
-                            <span className="px-2.5 py-1 bg-[#F4F7FC] text-[#10254F] text-[11px] rounded-lg font-bold border border-[#E3EBF5]">
-                              {dc.category}
-                            </span>
                           </td>
                           <td className="py-4 px-3">
                             <div className="flex items-center gap-2">
@@ -1203,7 +1197,7 @@ export default function AdminTasksPage() {
                     company: (formData.get("company") as string)?.trim() || "",
                     phone: (formData.get("phone") as string)?.trim() || "",
                     email: (formData.get("email") as string)?.trim() || "",
-                    category: (formData.get("category") as string)?.trim() || "Website Creation",
+                    category: (formData.get("category") as string)?.trim() || "",
                     status: (formData.get("status") as "Active" | "Inactive") || "Active",
                   },
                   "Admin"
@@ -1279,7 +1273,7 @@ export default function AdminTasksPage() {
                     company: (formData.get("company") as string)?.trim() || "",
                     phone: (formData.get("phone") as string)?.trim() || "",
                     email: (formData.get("email") as string)?.trim() || "",
-                    category: editingDirectoryClient.category || "Website Creation",
+                    category: editingDirectoryClient.category || "",
                     status: formData.get("status") as "Active" | "Inactive",
                   },
                   "Admin"
