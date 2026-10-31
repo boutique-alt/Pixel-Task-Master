@@ -23,7 +23,7 @@ import {
   Plus,
   X
 } from "lucide-react";
-import { useCRM, getLocalDateString, isTaskOnDate, CATEGORY_OPTIONS } from "@/context/CRMContext";
+import { useCRM, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate, CATEGORY_OPTIONS } from "@/context/CRMContext";
 import { Client } from "@/components/ClientTable";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
@@ -114,10 +114,14 @@ export default function MemberTasks() {
 
   // Tasks filtered by active date filter (defaults to today)
   const dateFilteredTasks = useMemo(() => {
-    if (dateFilterMode === "all") return myTasks;
     const targetDate = dateFilterMode === "today" ? today : dateFilterMode === "tomorrow" ? tomorrow : selectedDate;
+    if (dateFilterMode === "all") {
+      return myTasks.map(t => today ? getEffectiveTaskForDate(t, today) : t);
+    }
     if (!targetDate) return myTasks;
-    return myTasks.filter(t => isTaskOnDate(t, targetDate, true));
+    return myTasks
+      .filter(t => isTaskOnDate(t, targetDate, true))
+      .map(t => getEffectiveTaskForDate(t, targetDate));
   }, [myTasks, dateFilterMode, today, tomorrow, selectedDate]);
 
   // Today-only count for badge (includes member's rollover tasks)

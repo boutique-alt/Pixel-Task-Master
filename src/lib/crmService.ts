@@ -129,12 +129,20 @@ export async function fetchTasksDb(): Promise<Client[] | null> {
     return null;
   }
   return data.map((d: any) => {
-    // Extract statusUpdatedBy if safely embedded in reason or dedicated column
+    // Extract statusUpdatedBy & statusUpdatedDate if safely embedded in reason or dedicated columns
     let statusUpdatedBy = d.status_updated_by || "";
+    let statusUpdatedDate = d.status_updated_date || "";
     let cleanReason = d.reason || "";
-    if (!statusUpdatedBy && cleanReason && cleanReason.startsWith("UPD_BY:")) {
+    if (cleanReason && cleanReason.startsWith("UPD_BY:")) {
       const parts = cleanReason.split("|");
-      statusUpdatedBy = parts[0].replace("UPD_BY:", "");
+      const updMeta = parts[0].replace("UPD_BY:", "");
+      if (updMeta.includes("@")) {
+        const [uName, uDate] = updMeta.split("@");
+        if (!statusUpdatedBy) statusUpdatedBy = uName;
+        if (!statusUpdatedDate) statusUpdatedDate = uDate;
+      } else {
+        if (!statusUpdatedBy) statusUpdatedBy = updMeta;
+      }
       cleanReason = parts.slice(1).join("|");
     }
 
@@ -154,14 +162,19 @@ export async function fetchTasksDb(): Promise<Client[] | null> {
       comments: d.comments || "",
       reason: cleanReason,
       statusUpdatedBy: statusUpdatedBy || undefined,
+      statusUpdatedDate: statusUpdatedDate || undefined,
     };
   });
 }
 
 export async function upsertTaskDb(task: Client) {
-  // Embed statusUpdatedBy into reason if present (safe across all DB schemas)
-  const encodedReason = task.statusUpdatedBy
-    ? `UPD_BY:${task.statusUpdatedBy}|${task.reason || ""}`
+  // Embed statusUpdatedBy and statusUpdatedDate into reason safely (survives DB schema changes)
+  const metaString = task.statusUpdatedBy
+    ? (task.statusUpdatedDate ? `${task.statusUpdatedBy}@${task.statusUpdatedDate}` : task.statusUpdatedBy)
+    : "";
+
+  const encodedReason = metaString
+    ? `UPD_BY:${metaString}|${task.reason || ""}`
     : task.reason || "";
 
   const payload: any = {

@@ -17,7 +17,7 @@ import {
   FileSpreadsheet
 } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
+import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 import ExcelTaskImportModal from "@/components/ExcelTaskImportModal";
 
@@ -69,12 +69,17 @@ export default function CoordinatorTasksPage() {
   }
 
   // Filter tasks based on active date filter (defaults to today)
-  const dateFilteredTasks = clients.filter((t) => {
-    if (dateFilterMode === "all") return true;
-    const targetDate = dateFilterMode === "today" ? today : selectedDate;
-    if (!targetDate) return true;
-    return isTaskOnDate(t, targetDate);
-  });
+  const targetDate = dateFilterMode === "today" ? today : selectedDate;
+  const dateFilteredTasks = clients
+    .filter((t) => {
+      if (dateFilterMode === "all") return true;
+      if (!targetDate) return true;
+      return isTaskOnDate(t, targetDate);
+    })
+    .map((t) => {
+      const activeDate = targetDate || today;
+      return activeDate ? getEffectiveTaskForDate(t, activeDate) : t;
+    });
 
   const todayTasksCount = today
     ? clients.filter((t) => isTaskOnDate(t, today)).length

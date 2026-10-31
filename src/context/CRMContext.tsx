@@ -576,6 +576,29 @@ export function isTaskOnDate(
   return false;
 }
 
+export function getEffectiveTaskForDate(t: Client, dateStr: string): Client {
+  if (!t || !dateStr) return t;
+  // If it's a Regular task and we're looking at today or a future date (like tomorrow):
+  // If the status was updated on an EARLIER date (before dateStr), or if it has an old Done/Can't Do without matching this date,
+  // it resets to a fresh "Pending" for the new day so members can work on it and update it anew!
+  if (t.taskType === "Regular") {
+    const updatedDate = t.statusUpdatedDate;
+    // If status was updated on an earlier date, or viewing tomorrow while updated today/earlier
+    if (!updatedDate || updatedDate < dateStr) {
+      if (t.status === "Done" || t.status === "Can't Do" || t.status === "In Progress") {
+        return {
+          ...t,
+          status: "Pending",
+          received: "0",
+          statusUpdatedBy: undefined,
+          statusUpdatedDate: undefined,
+        };
+      }
+    }
+  }
+  return t;
+}
+
 export function parseTimeToMs(dateStr: string, timeStr?: string): number {
   if (!timeStr) return 0;
   const match = timeStr.trim().match(/(\d+)(?:[:\s](\d+))?(?:[:\s](\d+))?\s*(AM|PM)?/i);
@@ -1142,20 +1165,21 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   // --- TASK CRUD ---
   const updateStatus = (id: string, status: Client["status"], user: string) => {
     const updatedBy = user?.trim() || "User";
+    const todayStr = getLocalDateString();
     const target = clients.find((c) => c.id === id);
     if (target) {
       addActivity(`${updatedBy} changed status of ${target.name} to ${status}`, "status");
       let received = target.received;
       if (status === "Done") received = target.expected;
       if (status === "Can't Do") received = "0";
-      upsertTaskDb({ ...target, status, received, statusUpdatedBy: updatedBy });
+      upsertTaskDb({ ...target, status, received, statusUpdatedBy: updatedBy, statusUpdatedDate: todayStr });
     }
     setClients((prev) => prev.map((c) => {
       if (c.id === id) {
         let received = c.received;
         if (status === "Done") received = c.expected;
         if (status === "Can't Do") received = "0";
-        return { ...c, status, received, statusUpdatedBy: updatedBy };
+        return { ...c, status, received, statusUpdatedBy: updatedBy, statusUpdatedDate: todayStr };
       }
       return c;
     }));

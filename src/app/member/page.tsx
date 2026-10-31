@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle, MessageCircle } from "lucide-react";
 import ClientTable from "@/components/ClientTable";
-import { useCRM, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
+import { useCRM, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate } from "@/context/CRMContext";
 import MemberSendReportModal from "@/components/MemberSendReportModal";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
@@ -47,12 +47,17 @@ export default function MemberDashboard() {
   }, []);
 
   // Filter tasks based on active date filter (defaults to today)
-  const dateFilteredTasks = tasks.filter((t) => {
-    if (dateFilterMode === "all") return true;
-    const targetDate = dateFilterMode === "today" ? today : selectedDate;
-    if (!targetDate) return true;
-    return isTaskOnDate(t, targetDate);
-  });
+  const targetDate = dateFilterMode === "today" ? today : selectedDate;
+  const dateFilteredTasks = tasks
+    .filter((t) => {
+      if (dateFilterMode === "all") return true;
+      if (!targetDate) return true;
+      return isTaskOnDate(t, targetDate);
+    })
+    .map((t) => {
+      const activeDate = targetDate || today;
+      return activeDate ? getEffectiveTaskForDate(t, activeDate) : t;
+    });
 
   const todayTasksCount = today
     ? tasks.filter((t) => isTaskOnDate(t, today)).length

@@ -19,6 +19,7 @@ export type Client = {
   reason?: string;
   comments?: string;
   statusUpdatedBy?: string;
+  statusUpdatedDate?: string;
 };
 
 interface ClientTableProps {
