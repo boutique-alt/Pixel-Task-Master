@@ -27,7 +27,7 @@ import {
   Star
 } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate } from "@/context/CRMContext";
+import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate, canonicalClientName } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 import ExcelTaskImportModal from "@/components/ExcelTaskImportModal";
 
@@ -98,19 +98,47 @@ export default function AdminTasksPage() {
 
   const memberNames = members.map((m) => m.name);
 
-  // Unique client names from active tasks and client directory for filter dropdown (Important clients sorted to the top)
-  const uniqueClientNames = Array.from(
-    new Set([
-      ...directoryClients.map((dc) => dc.name.trim()),
-      ...clients.map((c) => c.name.trim()),
-    ])
-  ).filter(Boolean).sort((a, b) => {
-    const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.toLowerCase());
-    const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.toLowerCase());
-    if (isAImportant && !isBImportant) return -1;
-    if (!isAImportant && isBImportant) return 1;
-    return a.localeCompare(b);
-  });
+  // Unique client names from active tasks and client directory for filter dropdown (Deduplicated case-insensitively & Important clients sorted to the top)
+  const uniqueClientNames = (() => {
+    const rawNames = [
+      ...directoryClients.map((dc) => (dc.name || "").trim()),
+      ...clients.map((c) => (c.name || "").trim()),
+    ].filter(Boolean);
+
+    // Filter out generic placeholders like "all clients", "all projects"
+    const cleanedNames = rawNames.filter((name) => {
+      const lower = name.toLowerCase();
+      return lower !== "all clients" && lower !== "all projects" && lower !== "all client";
+    });
+
+    // Deduplicate case-insensitively and space/symbol-insensitively while preserving the best-cased title
+    const seenMap = new Map<string, string>();
+    for (const name of cleanedNames) {
+      const key = canonicalClientName(name);
+      if (!key) continue;
+      if (!seenMap.has(key)) {
+        seenMap.set(key, name);
+      } else {
+        // Prefer Title Case or camelCase with uppercase letters over all-lowercase
+        const existing = seenMap.get(key)!;
+        const existingUpperCount = (existing.match(/[A-Z]/g) || []).length;
+        const currentUpperCount = (name.match(/[A-Z]/g) || []).length;
+        if (currentUpperCount > existingUpperCount) {
+          seenMap.set(key, name);
+        }
+      }
+    }
+
+    return Array.from(seenMap.values()).sort((a, b) => {
+      const aKey = canonicalClientName(a);
+      const bKey = canonicalClientName(b);
+      const isAImportant = importantClients.some((n) => canonicalClientName(n) === aKey);
+      const isBImportant = importantClients.some((n) => canonicalClientName(n) === bKey);
+      if (isAImportant && !isBImportant) return -1;
+      if (!isAImportant && isBImportant) return 1;
+      return a.localeCompare(b);
+    });
+  })();
 
   // Filter tasks based on active date filter (defaults to today)
   const targetDate = dateFilterMode === "today" ? today : dateFilterMode === "tomorrow" ? tomorrow : selectedDate;
@@ -156,7 +184,7 @@ export default function AdminTasksPage() {
   const displayedTasks = dateFilteredTasks
     .filter((t) => {
       if (memberFilter !== "all" && t.member !== memberFilter) return false;
-      if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
+      if (clientFilter !== "all" && canonicalClientName(t.name) !== canonicalClientName(clientFilter)) return false;
       if (statusFilter !== "all" && t.status !== statusFilter) return false;
       if (viewFilter === "daily" && today) {
         if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
@@ -583,7 +611,7 @@ export default function AdminTasksPage() {
                     >
                       <option value="all">All Clients ({uniqueClientNames.length})</option>
                       {uniqueClientNames.map((cName) => {
-                        const isImp = importantClients.some((n) => n.trim().toLowerCase() === cName.toLowerCase());
+                        const isImp = importantClients.some((n) => canonicalClientName(n) === canonicalClientName(cName));
                         return (
                           <option 
                             key={cName} 

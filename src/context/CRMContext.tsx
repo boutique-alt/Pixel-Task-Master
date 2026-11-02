@@ -621,6 +621,16 @@ export function parseTimeToMs(dateStr: string, timeStr?: string): number {
   return new Date(y, mon - 1, d, h, m, s).getTime();
 }
 
+export function canonicalClientName(name: string): string {
+  if (!name) return "";
+  let s = name.toLowerCase().trim();
+  // Strip special symbols, spaces, underscores, dashes: "S Light" -> "slight", "EDL_Care" -> "edlcare"
+  s = s.replace(/[^a-z0-9]/g, "");
+  // Normalize common variations like "coachedbysouvik" vs "coachbysouvik"
+  s = s.replace(/coachedby/g, "coachby");
+  return s;
+}
+
 export function dedupeClients(list: Client[]): Client[] {
   if (!list || !Array.isArray(list)) return [];
   const seenIds = new Set<string>();
