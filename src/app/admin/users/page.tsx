@@ -1,26 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus, X, Edit, Trash2, Phone, Mail, Building2, Briefcase } from "lucide-react";
+import { Search, Plus, X, Edit, Trash2, Phone, Mail, Building2, Briefcase, Star } from "lucide-react";
 import { useCRM, DirectoryClient, CATEGORY_OPTIONS } from "@/context/CRMContext";
 
 export default function AdminClientsPage() {
-  const { directoryClients, clients, addDirectoryClient, updateDirectoryClient, deleteDirectoryClient } = useCRM();
+  const { directoryClients, clients, addDirectoryClient, updateDirectoryClient, deleteDirectoryClient, toggleImportantClient, importantClients = [] } = useCRM();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<DirectoryClient | null>(null);
 
-  const displayedClients = directoryClients.filter((dc) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      dc.name.toLowerCase().includes(q) ||
-      (dc.phone || "").toLowerCase().includes(q) ||
-      (dc.email || "").toLowerCase().includes(q) ||
-      (dc.company || "").toLowerCase().includes(q) ||
-      (dc.category || "").toLowerCase().includes(q)
-    );
-  });
+  const displayedClients = directoryClients
+    .filter((dc) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        dc.name.toLowerCase().includes(q) ||
+        (dc.phone || "").toLowerCase().includes(q) ||
+        (dc.email || "").toLowerCase().includes(q) ||
+        (dc.company || "").toLowerCase().includes(q) ||
+        (dc.category || "").toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.name.trim().toLowerCase()) || Boolean(a.isImportant);
+      const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.name.trim().toLowerCase()) || Boolean(b.isImportant);
+      if (isAImportant && !isBImportant) return -1;
+      if (!isAImportant && isBImportant) return 1;
+      return 0;
+    });
 
   return (
     <div className="space-y-6">
@@ -73,16 +81,72 @@ export default function AdminClientsPage() {
                 const clientTasks = clients.filter((t) => t.name.toLowerCase() === dc.name.toLowerCase());
                 const expTotal = clientTasks.reduce((s, t) => s + parseInt(t.expected || "0"), 0);
                 const recTotal = clientTasks.reduce((s, t) => s + parseInt(t.received || "0"), 0);
+                const isImportant = importantClients.some(
+                  (n) => n.trim().toLowerCase() === dc.name.trim().toLowerCase()
+                ) || Boolean(dc.isImportant);
+                const isInactive = dc.status === "Inactive";
 
                 return (
-                  <tr key={dc.id} className="hover:bg-[#F4F7FC]/60 transition-colors">
+                  <tr 
+                    key={dc.id} 
+                    className={`transition-colors ${
+                      isInactive
+                        ? "bg-[#F8FAFC] opacity-75 hover:bg-[#F1F5F9]"
+                        : isImportant
+                        ? "bg-[#FFFBEB]/70 hover:bg-[#FEF3C7]/60 border-l-[3px] border-l-[#F59E0B]"
+                        : "hover:bg-[#F4F7FC]/60"
+                    }`}
+                  >
                     <td className="py-4 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] font-extrabold flex items-center justify-center text-[15px] shrink-0">
+                      <div className="flex items-center gap-2.5">
+                        {/* Star Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleImportantClient(dc.name, "Admin")}
+                          className="p-1 rounded hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                          title={isImportant ? "Remove from Important Clients" : "Mark as Important (Keep at top)"}
+                        >
+                          <Star
+                            size={16}
+                            className={
+                              isImportant
+                                ? "fill-[#F59E0B] text-[#F59E0B]"
+                                : "text-gray-300 hover:text-[#F59E0B]"
+                            }
+                          />
+                        </button>
+
+                        <div className={`w-10 h-10 rounded-full font-extrabold flex items-center justify-center text-[15px] shrink-0 ${
+                          isInactive
+                            ? "bg-gray-200 text-gray-500"
+                            : isImportant
+                            ? "bg-[#F59E0B]/20 text-[#D97706] ring-2 ring-[#F59E0B]/30"
+                            : "bg-[#8B5CF6]/10 text-[#8B5CF6]"
+                        }`}>
                           {dc.name.charAt(0)}
                         </div>
                         <div>
-                          <p className="font-extrabold text-[14px] text-[#10254F]">{dc.name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className={`text-[14px] ${
+                              isInactive
+                                ? "font-bold text-gray-500 line-through"
+                                : isImportant
+                                ? "font-black text-[#78350F] tracking-tight text-[15px]"
+                                : "font-extrabold text-[#10254F]"
+                            }`}>
+                              {dc.name}
+                            </p>
+                            {isImportant && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#F59E0B]/20 text-[#B45309] border border-[#F59E0B]/40">
+                                <Star size={10} className="fill-[#B45309]" /> VIP
+                              </span>
+                            )}
+                            {isInactive && (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold uppercase bg-gray-200 text-gray-600 border border-gray-300">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] font-medium text-[#64748B] flex items-center gap-1 mt-0.5">
                             <Building2 size={12} className="text-[#94A3B8]" />
                             {dc.company || "Individual Client"}

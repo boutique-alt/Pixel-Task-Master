@@ -91,6 +91,7 @@ export type DirectoryClient = {
   category?: string;
   address?: string;
   status?: "Active" | "Inactive";
+  isImportant?: boolean;
 };
 
 export const CATEGORY_OPTIONS = [
@@ -318,6 +319,8 @@ interface CRMContextType {
   addDirectoryClient: (client: DirectoryClient, adminName: string) => void;
   updateDirectoryClient: (id: string, updatedData: Partial<DirectoryClient>, adminName: string) => void;
   deleteDirectoryClient: (id: string, adminName: string) => void;
+  toggleImportantClient: (clientName: string, adminName?: string) => void;
+  importantClients: string[];
   // Leave Type Options CRUD (Admin)
   addLeaveType: (option: LeaveTypeOption) => void;
   updateLeaveType: (id: string, updated: Partial<LeaveTypeOption>) => void;
@@ -536,6 +539,7 @@ const STORAGE_KEYS = {
   BROADCAST_ALERTS: "ptm_crm_broadcast_alerts_v1",
   COMPANY_HOLIDAYS: "ptm_crm_company_holidays_v1",
   HOLIDAY_SELECTIONS: "ptm_crm_holiday_selections_v1",
+  IMPORTANT_CLIENTS: "ptm_crm_important_clients_v1",
 };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -672,6 +676,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const [broadcastAlerts, setBroadcastAlerts] = useState<BroadcastAlert[]>([]);
   const [companyHolidays, setCompanyHolidays] = useState<CompanyHoliday[]>(INITIAL_COMPANY_HOLIDAYS);
   const [memberHolidaySelections, setMemberHolidaySelections] = useState<MemberHolidaySelection[]>([]);
+  const [importantClients, setImportantClients] = useState<string[]>([]);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
@@ -747,6 +752,13 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       if (savedSalaryPayments) setSalaryPayments(JSON.parse(savedSalaryPayments));
       if (savedDailyReports) setDailyReports(JSON.parse(savedDailyReports));
       if (savedBroadcastAlerts) setBroadcastAlerts(JSON.parse(savedBroadcastAlerts));
+      const savedImportantClients = localStorage.getItem(STORAGE_KEYS.IMPORTANT_CLIENTS);
+      if (savedImportantClients) {
+        try {
+          const parsed = JSON.parse(savedImportantClients);
+          if (Array.isArray(parsed)) setImportantClients(parsed);
+        } catch {}
+      }
 
       let parsedAttConfig: OfficeAttendanceConfig = INITIAL_ATTENDANCE_CONFIG;
       if (savedAttConfig) {
@@ -1015,6 +1027,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           setDailyReports(JSON.parse(e.newValue));
         } else if (e.key === STORAGE_KEYS.BROADCAST_ALERTS && e.newValue) {
           setBroadcastAlerts(JSON.parse(e.newValue));
+        } else if (e.key === STORAGE_KEYS.IMPORTANT_CLIENTS && e.newValue) {
+          setImportantClients(JSON.parse(e.newValue));
         }
       } catch (err) {
         console.error("Error syncing CRM state across tabs", err);
@@ -1151,6 +1165,11 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (!isHydrated) return;
     try { localStorage.setItem(STORAGE_KEYS.BROADCAST_ALERTS, JSON.stringify(broadcastAlerts)); } catch (e) { console.error(e); }
   }, [broadcastAlerts, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    try { localStorage.setItem(STORAGE_KEYS.IMPORTANT_CLIENTS, JSON.stringify(importantClients)); } catch (e) { console.error(e); }
+  }, [importantClients, isHydrated]);
 
   const addActivity = (text: string, type: Activity["type"]) => {
     const newActivity: Activity = {
@@ -1356,6 +1375,54 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (target) {
       addActivity(`${adminName} deleted client profile ${target.name}`, "status");
     }
+  };
+
+  const toggleImportantClient = (clientName: string, adminName = "Admin") => {
+    if (!clientName) return;
+    const cleanName = clientName.trim();
+    const isNowImportant = !importantClients.some(
+      (n) => n.trim().toLowerCase() === cleanName.toLowerCase()
+    );
+
+    setImportantClients((prev) => {
+      let next: string[];
+      if (isNowImportant) {
+        next = Array.from(new Set([...prev, cleanName]));
+      } else {
+        next = prev.filter((n) => n.trim().toLowerCase() !== cleanName.toLowerCase());
+      }
+      try {
+        localStorage.setItem(STORAGE_KEYS.IMPORTANT_CLIENTS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Also update directoryClient if exists
+    setDirectoryClients((prev) =>
+      prev.map((dc) => {
+        if (dc.name.trim().toLowerCase() === cleanName.toLowerCase()) {
+          const updated = { ...dc, isImportant: isNowImportant };
+          upsertDirectoryClientDb(updated);
+          return updated;
+        }
+        return dc;
+      })
+    );
+
+    // Update live clients/tasks
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.name.trim().toLowerCase() === cleanName.toLowerCase()) {
+          return { ...c, isImportant: isNowImportant };
+        }
+        return c;
+      })
+    );
+
+    addActivity(
+      `${adminName} ${isNowImportant ? "marked" : "unmarked"} ${cleanName} as Important Client`,
+      "status"
+    );
   };
 
   // --- LEAVE TYPE OPTIONS CRUD (ADMIN) ---
@@ -2189,6 +2256,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       addClient, deleteClient, updateClient,
       addMember, updateMember, deleteMember,
       addDirectoryClient, updateDirectoryClient, deleteDirectoryClient,
+      toggleImportantClient, importantClients,
       addLeaveType, updateLeaveType, deleteLeaveType,
       applyLeave, updateLeaveRequestStatus, deleteLeaveRequest,
       updateAttendanceConfig, requestDeviceAuthorization, updateDeviceStatus, deleteAuthorizedDevice,

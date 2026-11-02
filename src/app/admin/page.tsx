@@ -8,7 +8,7 @@ import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate, getEffectiv
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 export default function AdminDashboard() {
-  const { clients, directoryClients, members, assignMember, addClient, deleteClient, updateClient, updateStatus, dailyReports } = useCRM();
+  const { clients, directoryClients, members, assignMember, addClient, deleteClient, updateClient, updateStatus, dailyReports, importantClients = [] } = useCRM();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
@@ -52,15 +52,29 @@ export default function AdminDashboard() {
     .map((t) => {
       const activeDate = targetDate || today;
       return getEffectiveTaskForDate(t, activeDate);
+    })
+    .sort((a, b) => {
+      // Important clients always sorted to the TOP
+      const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.name.trim().toLowerCase()) || Boolean(a.isImportant);
+      const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.name.trim().toLowerCase()) || Boolean(b.isImportant);
+      if (isAImportant && !isBImportant) return -1;
+      if (!isAImportant && isBImportant) return 1;
+      return 0;
     });
 
-  // Unique client names for filter dropdown
+  // Unique client names for filter dropdown (Important clients sorted to the top)
   const uniqueClientNames = Array.from(
     new Set([
       ...directoryClients.map((dc) => dc.name.trim()),
       ...clients.map((c) => c.name.trim()),
     ])
-  ).filter(Boolean).sort();
+  ).filter(Boolean).sort((a, b) => {
+    const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.toLowerCase());
+    const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.toLowerCase());
+    if (isAImportant && !isBImportant) return -1;
+    if (!isAImportant && isBImportant) return 1;
+    return a.localeCompare(b);
+  });
 
   const todayTasksCount = today
     ? clients.filter((t) => isTaskOnDate(t, today)).length
@@ -297,9 +311,19 @@ export default function AdminDashboard() {
                   className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-2xl outline-none hover:bg-gray-50 transition-colors shadow-[0_2px_8px_rgba(0,0,0,0.02)] cursor-pointer"
                 >
                   <option value="all">All Clients ({uniqueClientNames.length})</option>
-                  {uniqueClientNames.map((cName) => (
-                    <option key={cName} value={cName}>{cName}</option>
-                  ))}
+                  {uniqueClientNames.map((cName) => {
+                    const isImp = importantClients.some((n) => n.trim().toLowerCase() === cName.toLowerCase());
+                    return (
+                      <option 
+                        key={cName} 
+                        value={cName}
+                        className={isImp ? "font-black text-[#B45309] bg-amber-50" : "font-normal"}
+                        style={isImp ? { fontWeight: 900, color: "#92400E", backgroundColor: "#FEF3C7" } : undefined}
+                      >
+                        {isImp ? `★ ${cName} (VIP)` : cName}
+                      </option>
+                    );
+                  })}
                 </select>
                 <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B5CF6]" size={15} />
                 <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>

@@ -23,7 +23,8 @@ import {
   Building2,
   FileSpreadsheet,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Star
 } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
 import { useCRM, Member, DirectoryClient, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate } from "@/context/CRMContext";
@@ -49,7 +50,9 @@ export default function AdminTasksPage() {
     // Client CRUD
     addDirectoryClient,
     updateDirectoryClient,
-    deleteDirectoryClient
+    deleteDirectoryClient,
+    toggleImportantClient,
+    importantClients = []
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState<"tasks" | "clients" | "members">("tasks");
@@ -95,13 +98,19 @@ export default function AdminTasksPage() {
 
   const memberNames = members.map((m) => m.name);
 
-  // Unique client names from active tasks and client directory for filter dropdown
+  // Unique client names from active tasks and client directory for filter dropdown (Important clients sorted to the top)
   const uniqueClientNames = Array.from(
     new Set([
       ...directoryClients.map((dc) => dc.name.trim()),
       ...clients.map((c) => c.name.trim()),
     ])
-  ).filter(Boolean).sort();
+  ).filter(Boolean).sort((a, b) => {
+    const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.toLowerCase());
+    const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.toLowerCase());
+    if (isAImportant && !isBImportant) return -1;
+    if (!isAImportant && isBImportant) return 1;
+    return a.localeCompare(b);
+  });
 
   // Filter tasks based on active date filter (defaults to today)
   const targetDate = dateFilterMode === "today" ? today : dateFilterMode === "tomorrow" ? tomorrow : selectedDate;
@@ -144,48 +153,65 @@ export default function AdminTasksPage() {
     : [];
 
   // Filtered tasks for the table
-  const displayedTasks = dateFilteredTasks.filter((t) => {
-    if (memberFilter !== "all" && t.member !== memberFilter) return false;
-    if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (viewFilter === "daily" && today) {
-      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
-    } else if (viewFilter === "overdue" && today) {
-      if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
-    } else if (viewFilter === "regular") {
-      if (t.taskType !== "Regular") return false;
-    } else if (viewFilter === "onetime") {
-      if (t.taskType !== "One-Time") return false;
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = t.name.toLowerCase().includes(q);
-      const matchPhone = t.phone?.toLowerCase().includes(q);
-      const matchCategory = t.category?.toLowerCase().includes(q);
-      const matchDetails = t.taskDetails?.toLowerCase().includes(q);
-      const matchMember = t.member?.toLowerCase().includes(q);
-      const matchComments = t.comments?.toLowerCase().includes(q);
-      if (!matchName && !matchPhone && !matchCategory && !matchDetails && !matchMember && !matchComments) {
-        return false;
+  const displayedTasks = dateFilteredTasks
+    .filter((t) => {
+      if (memberFilter !== "all" && t.member !== memberFilter) return false;
+      if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
+      if (statusFilter !== "all" && t.status !== statusFilter) return false;
+      if (viewFilter === "daily" && today) {
+        if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
+      } else if (viewFilter === "overdue" && today) {
+        if (!((t.status === "Pending" || t.status === "In Progress") && t.endDate < today)) return false;
+      } else if (viewFilter === "regular") {
+        if (t.taskType !== "Regular") return false;
+      } else if (viewFilter === "onetime") {
+        if (t.taskType !== "One-Time") return false;
       }
-    }
 
-    return true;
-  });
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = t.name.toLowerCase().includes(q);
+        const matchPhone = t.phone?.toLowerCase().includes(q);
+        const matchCategory = t.category?.toLowerCase().includes(q);
+        const matchDetails = t.taskDetails?.toLowerCase().includes(q);
+        const matchMember = t.member?.toLowerCase().includes(q);
+        const matchComments = t.comments?.toLowerCase().includes(q);
+        if (!matchName && !matchPhone && !matchCategory && !matchDetails && !matchMember && !matchComments) {
+          return false;
+        }
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // Important clients always sorted to the TOP
+      const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.name.trim().toLowerCase()) || Boolean(a.isImportant);
+      const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.name.trim().toLowerCase()) || Boolean(b.isImportant);
+      if (isAImportant && !isBImportant) return -1;
+      if (!isAImportant && isBImportant) return 1;
+      return 0;
+    });
 
   // Filtered directory clients
-  const displayedDirectoryClients = directoryClients.filter((dc) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      dc.name.toLowerCase().includes(q) ||
-      (dc.phone || "").toLowerCase().includes(q) ||
-      (dc.email || "").toLowerCase().includes(q) ||
-      (dc.company || "").toLowerCase().includes(q) ||
-      (dc.category || "").toLowerCase().includes(q)
-    );
-  });
+  const displayedDirectoryClients = directoryClients
+    .filter((dc) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        dc.name.toLowerCase().includes(q) ||
+        (dc.phone || "").toLowerCase().includes(q) ||
+        (dc.email || "").toLowerCase().includes(q) ||
+        (dc.company || "").toLowerCase().includes(q) ||
+        (dc.category || "").toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.name.trim().toLowerCase()) || Boolean(a.isImportant);
+      const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.name.trim().toLowerCase()) || Boolean(b.isImportant);
+      if (isAImportant && !isBImportant) return -1;
+      if (!isAImportant && isBImportant) return 1;
+      return 0;
+    });
 
   // Filtered members
   const displayedMembers = members.filter((m) => {
@@ -556,9 +582,19 @@ export default function AdminTasksPage() {
                       className="appearance-none bg-white border border-[#E3EAF5] text-[13px] font-bold text-[#10254F] pl-9 pr-9 py-2.5 rounded-lg outline-none hover:bg-gray-50 transition-colors shadow-sm cursor-pointer max-w-[200px]"
                     >
                       <option value="all">All Clients ({uniqueClientNames.length})</option>
-                      {uniqueClientNames.map((cName) => (
-                        <option key={cName} value={cName}>{cName}</option>
-                      ))}
+                      {uniqueClientNames.map((cName) => {
+                        const isImp = importantClients.some((n) => n.trim().toLowerCase() === cName.toLowerCase());
+                        return (
+                          <option 
+                            key={cName} 
+                            value={cName}
+                            className={isImp ? "font-black text-[#B45309] bg-amber-50" : "font-normal"}
+                            style={isImp ? { fontWeight: 900, color: "#92400E", backgroundColor: "#FEF3C7" } : undefined}
+                          >
+                            {isImp ? `★ ${cName} (VIP)` : cName}
+                          </option>
+                        );
+                      })}
                     </select>
                     <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B5CF6]" size={15} />
                     <svg className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -651,16 +687,72 @@ export default function AdminTasksPage() {
                       const clientTasks = clients.filter((t) => t.name.toLowerCase() === dc.name.toLowerCase());
                       const expTotal = clientTasks.reduce((s, t) => s + parseInt(t.expected || "0"), 0);
                       const recTotal = clientTasks.reduce((s, t) => s + parseInt(t.received || "0"), 0);
+                      const isImportant = importantClients.some(
+                        (n) => n.trim().toLowerCase() === dc.name.trim().toLowerCase()
+                      ) || Boolean(dc.isImportant);
+                      const isInactive = dc.status === "Inactive";
 
                       return (
-                        <tr key={dc.id} className="hover:bg-[#F4F7FC]/60 transition-colors">
+                        <tr 
+                          key={dc.id} 
+                          className={`transition-colors ${
+                            isInactive
+                              ? "bg-[#F8FAFC] opacity-75 hover:bg-[#F1F5F9]"
+                              : isImportant
+                              ? "bg-[#FFFBEB]/70 hover:bg-[#FEF3C7]/60 border-l-[3px] border-l-[#F59E0B]"
+                              : "hover:bg-[#F4F7FC]/60"
+                          }`}
+                        >
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] font-extrabold flex items-center justify-center text-[15px] shrink-0">
+                            <div className="flex items-center gap-2.5">
+                              {/* Star Toggle Button */}
+                              <button
+                                type="button"
+                                onClick={() => toggleImportantClient(dc.name, "Admin")}
+                                className="p-1 rounded hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                                title={isImportant ? "Remove from Important Clients" : "Mark as Important (Keep at top)"}
+                              >
+                                <Star
+                                  size={16}
+                                  className={
+                                    isImportant
+                                      ? "fill-[#F59E0B] text-[#F59E0B]"
+                                      : "text-gray-300 hover:text-[#F59E0B]"
+                                  }
+                                />
+                              </button>
+
+                              <div className={`w-10 h-10 rounded-full font-extrabold flex items-center justify-center text-[15px] shrink-0 ${
+                                isInactive
+                                  ? "bg-gray-200 text-gray-500"
+                                  : isImportant
+                                  ? "bg-[#F59E0B]/20 text-[#D97706] ring-2 ring-[#F59E0B]/30"
+                                  : "bg-[#8B5CF6]/10 text-[#8B5CF6]"
+                              }`}>
                                 {dc.name.charAt(0)}
                               </div>
                               <div>
-                                <p className="font-extrabold text-[14px] text-[#10254F]">{dc.name}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className={`text-[14px] ${
+                                    isInactive
+                                      ? "font-bold text-gray-500 line-through"
+                                      : isImportant
+                                      ? "font-black text-[#78350F] tracking-tight text-[15px]"
+                                      : "font-extrabold text-[#10254F]"
+                                  }`}>
+                                    {dc.name}
+                                  </p>
+                                  {isImportant && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#F59E0B]/20 text-[#B45309] border border-[#F59E0B]/40">
+                                      <Star size={10} className="fill-[#B45309]" /> VIP
+                                    </span>
+                                  )}
+                                  {isInactive && (
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold uppercase bg-gray-200 text-gray-600 border border-gray-300">
+                                      Inactive
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-[11px] font-medium text-[#64748B] flex items-center gap-1 mt-0.5">
                                   <Building2 size={12} className="text-[#94A3B8]" />
                                   {dc.company || "Individual Client"}

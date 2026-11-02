@@ -32,7 +32,8 @@ export default function CoordinatorTasksPage() {
     assignMember, 
     updateStatus,
     currentMember,
-    sessionUser
+    sessionUser,
+    importantClients = []
   } = useCRM();
 
   const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
@@ -144,7 +145,13 @@ export default function CoordinatorTasksPage() {
       if (cleanName) seenContent.add(taskIdentity);
       deduped.push(t);
     }
-    return deduped;
+    return deduped.sort((a, b) => {
+      const isAImportant = importantClients.some((n) => n.trim().toLowerCase() === a.name.trim().toLowerCase()) || Boolean(a.isImportant);
+      const isBImportant = importantClients.some((n) => n.trim().toLowerCase() === b.name.trim().toLowerCase()) || Boolean(b.isImportant);
+      if (isAImportant && !isBImportant) return -1;
+      if (!isAImportant && isBImportant) return 1;
+      return 0;
+    });
   })();
 
   return (

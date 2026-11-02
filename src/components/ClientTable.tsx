@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Edit, Trash2, MessageCircle } from "lucide-react";
-import { getLocalDateString, getEffectiveTaskForDate } from "@/context/CRMContext";
+import { Edit, Trash2, MessageCircle, Star } from "lucide-react";
+import { getLocalDateString, getEffectiveTaskForDate, useCRM } from "@/context/CRMContext";
 
 export type Client = {
   id: string;
@@ -21,6 +21,8 @@ export type Client = {
   comments?: string;
   statusUpdatedBy?: string;
   statusUpdatedDate?: string;
+  isImportant?: boolean;
+  clientStatus?: "Active" | "Inactive";
 };
 
 interface ClientTableProps {
@@ -36,6 +38,7 @@ interface ClientTableProps {
 }
 
 export default function ClientTable({ clients, isAdmin, isCoordinator, members = [], onStatusChange, onCommentChange, onAssignChange, onEdit, onDelete }: ClientTableProps) {
+  const { importantClients = [], directoryClients = [], toggleImportantClient } = useCRM();
   const [today, setToday] = useState("");
   const showAssignee = isAdmin || isCoordinator;
   const showFinancials = isAdmin; // Hide financial figures from coordinator
@@ -81,17 +84,94 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
                 c.endDate < today
               );
 
+              // Check if client is Important (from client prop or global importantClients list)
+              const normName = (c.name || "").trim().toLowerCase();
+              const isImportant = Boolean(
+                c.isImportant ||
+                importantClients.some((n) => n.trim().toLowerCase() === normName)
+              );
+
+              // Check if client is Inactive in directory
+              const matchingDirClient = directoryClients.find(
+                (dc) => dc.name.trim().toLowerCase() === normName
+              );
+              const isInactiveClient =
+                c.clientStatus === "Inactive" ||
+                matchingDirClient?.status === "Inactive";
+
               return (
-                <tr key={c.id} className="hover:bg-[#F4F7FC]/50 transition-colors group">
+                <tr 
+                  key={c.id} 
+                  className={`transition-colors group ${
+                    isInactiveClient
+                      ? "bg-[#F8FAFC] opacity-75 hover:bg-[#F1F5F9]"
+                      : isImportant
+                      ? "bg-[#FFFBEB]/70 hover:bg-[#FEF3C7]/60 border-l-[3px] border-l-[#F59E0B]"
+                      : "hover:bg-[#F4F7FC]/50"
+                  }`}
+                >
                   <td className="py-4 px-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-[38px] h-[38px] rounded-full bg-[#1677FF]/10 text-[#1677FF] font-extrabold flex items-center justify-center text-[15px] shrink-0">
+                    <div className="flex items-center gap-2.5">
+                      {/* Star Button for Important Client Toggle (Admin & Coordinator) */}
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleImportantClient(c.name, "Admin")}
+                          className="p-1 rounded hover:bg-amber-100 transition-colors cursor-pointer shrink-0"
+                          title={isImportant ? "Remove from Important Clients" : "Mark as Important Client (Keep at top)"}
+                        >
+                          <Star
+                            size={16}
+                            className={
+                              isImportant
+                                ? "fill-[#F59E0B] text-[#F59E0B]"
+                                : "text-gray-300 hover:text-[#F59E0B]"
+                            }
+                          />
+                        </button>
+                      ) : isImportant ? (
+                        <Star size={16} className="fill-[#F59E0B] text-[#F59E0B] shrink-0" />
+                      ) : null}
+
+                      <div className={`w-[36px] h-[36px] rounded-full font-extrabold flex items-center justify-center text-[14px] shrink-0 ${
+                        isInactiveClient
+                          ? "bg-gray-200 text-gray-500"
+                          : isImportant
+                          ? "bg-[#F59E0B]/20 text-[#D97706] ring-2 ring-[#F59E0B]/30"
+                          : "bg-[#1677FF]/10 text-[#1677FF]"
+                      }`}>
                         {c.name.charAt(0)}
                       </div>
+
                       <div>
-                        <p className="font-extrabold text-[14px] text-[#14233F]">{c.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`text-[14px] ${
+                            isInactiveClient 
+                              ? "font-bold text-gray-500 line-through" 
+                              : isImportant
+                              ? "font-black text-[#78350F] tracking-tight text-[15px]"
+                              : "font-extrabold text-[#14233F]"
+                          }`}>
+                            {c.name}
+                          </p>
+
+                          {isImportant && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-[#F59E0B]/20 text-[#B45309] border border-[#F59E0B]/40">
+                              <Star size={10} className="fill-[#B45309]" /> VIP
+                            </span>
+                          )}
+
+                          {isInactiveClient && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold uppercase bg-gray-200 text-gray-600 border border-gray-300">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
+
                         <p className="text-[11px] font-semibold text-[#64748B] flex items-center gap-1.5 mt-0.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#1677FF] inline-block"></span>
+                          <span className={`w-1.5 h-1.5 rounded-full inline-block ${
+                            isInactiveClient ? "bg-gray-400" : isImportant ? "bg-[#F59E0B]" : "bg-[#1677FF]"
+                          }`}></span>
                           {c.category}
                           {isAdmin && c.phone && <span className="text-[#94A3B8] font-medium">• {c.phone}</span>}
                         </p>
