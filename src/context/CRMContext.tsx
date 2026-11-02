@@ -940,8 +940,30 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           }
 
           if (dbMembers && dbMembers.length > 0) setMembers(dbMembers);
-          if (dbClients && dbClients.length > 0) setDirectoryClients(dbClients);
           if (dbTasks && dbTasks.length > 0) setClients(dedupeClients(dbTasks));
+
+          // Ensure Directory Clients always contains every client that exists in tasks as well
+          const combinedDirClients: DirectoryClient[] = [...(dbClients || [])];
+          if (dbTasks && dbTasks.length > 0) {
+            for (const t of dbTasks) {
+              const tName = (t.name || "").trim();
+              if (!tName) continue;
+              const tKey = canonicalClientName(tName);
+              const alreadyInDir = combinedDirClients.some((dc) => canonicalClientName(dc.name) === tKey);
+              if (!alreadyInDir) {
+                const autoDir: DirectoryClient = {
+                  id: "auto_" + t.id,
+                  name: tName,
+                  phone: t.phone || "",
+                  category: t.category || "",
+                  status: "Active",
+                };
+                combinedDirClients.push(autoDir);
+                upsertDirectoryClientDb(autoDir);
+              }
+            }
+          }
+          if (combinedDirClients.length > 0) setDirectoryClients(combinedDirClients);
           if (dbAttRecs && dbAttRecs.length > 0) {
             const seen = new Set<string>();
             const deduped: AttendanceRecord[] = [];
