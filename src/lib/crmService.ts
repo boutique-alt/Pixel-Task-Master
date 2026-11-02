@@ -562,7 +562,8 @@ export function isRealOfficeRule(d: any): boolean {
     id.startsWith("rep_") ||
     id.startsWith("alert_") ||
     id.startsWith("hol_") ||
-    id.startsWith("hols_")
+    id.startsWith("hols_") ||
+    id.startsWith("photo_")
   ) {
     return false;
   }
@@ -574,8 +575,14 @@ export function isRealOfficeRule(d: any): boolean {
     cat === "Broadcast Alert" ||
     cat === "Timing & Attendance Config" ||
     cat === "Company Holiday" ||
-    cat === "Holiday Selection"
+    cat === "Holiday Selection" ||
+    cat.toLowerCase().includes("photo")
   ) {
+    return false;
+  }
+
+  // Exclude any base64 image strings
+  if (desc.startsWith("data:image/") || desc.startsWith("data:")) {
     return false;
   }
 
