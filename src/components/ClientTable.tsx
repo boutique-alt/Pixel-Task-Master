@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Edit, Trash2, MessageCircle } from "lucide-react";
-import { getLocalDateString } from "@/context/CRMContext";
+import { getLocalDateString, getEffectiveTaskForDate } from "@/context/CRMContext";
 
 export type Client = {
   id: string;
@@ -68,7 +68,9 @@ export default function ClientTable({ clients, isAdmin, isCoordinator, members =
               </td>
             </tr>
           ) : (
-            clients.map((c) => {
+            clients.map((rawClient) => {
+              // Ensure Regular daily tasks reflect effective status (Pending on new day)
+              const c = getEffectiveTaskForDate(rawClient, today);
               // Only past dates (yesterday or earlier) can be overdue; today's pending tasks are NOT overdue!
               // Regular tasks are ongoing everyday routine work and never marked overdue!
               const isOverdue = Boolean(

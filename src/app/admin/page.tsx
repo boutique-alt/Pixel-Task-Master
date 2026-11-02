@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { X, AlertCircle, Briefcase, ChevronDown, ChevronUp } from "lucide-react";
 import ClientTable, { Client } from "@/components/ClientTable";
-import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate } from "@/context/CRMContext";
+import { useCRM, CATEGORY_OPTIONS, getLocalDateString, isTaskOnDate, getEffectiveTaskForDate } from "@/context/CRMContext";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 export default function AdminDashboard() {
@@ -41,13 +41,18 @@ export default function AdminDashboard() {
   }, []);
 
   // Filter tasks based on active date filter and client filter (defaults to today)
-  const displayedTasks = clients.filter((t) => {
-    if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
-    if (dateFilterMode === "all") return true;
-    const targetDate = dateFilterMode === "today" ? today : selectedDate;
-    if (!targetDate) return true;
-    return isTaskOnDate(t, targetDate);
-  });
+  const targetDate = dateFilterMode === "today" ? today : selectedDate;
+  const displayedTasks = clients
+    .filter((t) => {
+      if (clientFilter !== "all" && t.name.trim().toLowerCase() !== clientFilter.trim().toLowerCase()) return false;
+      if (dateFilterMode === "all") return true;
+      if (!targetDate) return true;
+      return isTaskOnDate(t, targetDate);
+    })
+    .map((t) => {
+      const activeDate = targetDate || today;
+      return getEffectiveTaskForDate(t, activeDate);
+    });
 
   // Unique client names for filter dropdown
   const uniqueClientNames = Array.from(

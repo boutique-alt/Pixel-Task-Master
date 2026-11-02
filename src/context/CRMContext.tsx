@@ -576,15 +576,16 @@ export function isTaskOnDate(
   return false;
 }
 
-export function getEffectiveTaskForDate(t: Client, dateStr: string): Client {
-  if (!t || !dateStr) return t;
-  // If it's a Regular task and we're looking at today or a future date (like tomorrow):
-  // If the status was updated on an EARLIER date (before dateStr), or if it has an old Done/Can't Do without matching this date,
+export function getEffectiveTaskForDate(t: Client, dateStr?: string): Client {
+  if (!t) return t;
+  const effectiveDate = dateStr || getLocalDateString();
+  // If it's a Regular task and we're looking at today or a future date:
+  // If the status was updated on an EARLIER date (before effectiveDate), or if statusUpdatedDate is not set to effectiveDate,
   // it resets to a fresh "Pending" for the new day so members can work on it and update it anew!
-  if (t.taskType === "Regular") {
+  const isRegular = !t.taskType || t.taskType.toLowerCase() === "regular";
+  if (isRegular) {
     const updatedDate = t.statusUpdatedDate;
-    // If status was updated on an earlier date, or viewing tomorrow while updated today/earlier
-    if (!updatedDate || updatedDate < dateStr) {
+    if (!updatedDate || updatedDate < effectiveDate) {
       if (t.status === "Done" || t.status === "Can't Do" || t.status === "In Progress") {
         return {
           ...t,
@@ -1255,11 +1256,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
   const updateClient = (id: string, updatedData: Partial<Client>, adminName: string) => {
     const target = clients.find((c) => c.id === id);
+    const todayStr = getLocalDateString();
+    const finalData = { ...updatedData };
+    if (updatedData.status && updatedData.status !== target?.status && !updatedData.statusUpdatedDate) {
+      finalData.statusUpdatedDate = todayStr;
+      if (!finalData.statusUpdatedBy) finalData.statusUpdatedBy = adminName;
+    }
     if (target) {
       addActivity(`${adminName} updated task details for ${target.name}`, "status");
-      upsertTaskDb({ ...target, ...updatedData });
+      upsertTaskDb({ ...target, ...finalData });
     }
-    setClients(prev => prev.map(c => (c.id === id ? { ...c, ...updatedData } : c)));
+    setClients(prev => prev.map(c => (c.id === id ? { ...c, ...finalData } : c)));
     if (updatedData.member) {
       setCurrentMember(updatedData.member);
     }
