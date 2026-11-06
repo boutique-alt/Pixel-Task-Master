@@ -1727,36 +1727,37 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
-
-      // Check if current time is >= 7:30 PM (19:30)
       const isPast730Pm = currentHour > 19 || (currentHour === 19 && currentMinute >= 30);
-      if (!isPast730Pm) return;
-
       const todayStr = getLocalDateString(now);
 
-      // Find any member or coordinator who checked in today but has not checked out yet
+      // Find any member or coordinator who checked in today (if past 7:30 PM) OR on any past date (< todayStr) but has not checked out yet
       setAttendanceRecords((prev) => {
         let changed = false;
         const updated = prev.map((r) => {
-          if (r.date === todayStr && !r.checkOutTime) {
-            changed = true;
-            // Check out time is fixed at 07:30:00 PM if auto-checked out
-            const autoCheckoutTimeStr = "07:30:00 PM";
-            const checkoutDate = new Date(now);
-            checkoutDate.setHours(19, 30, 0, 0);
-            const checkoutTs = checkoutDate.getTime();
-            const diffMins = Math.max(1, Math.round((checkoutTs - r.checkInTimestamp) / 60000));
+          if (!r.checkOutTime) {
+            const isTodayUnclosed = r.date === todayStr && isPast730Pm;
+            const isPastDayUnclosed = r.date < todayStr;
 
-            const autoRecord: AttendanceRecord = {
-              ...r,
-              checkOutTime: autoCheckoutTimeStr,
-              checkOutTimestamp: checkoutTs,
-              workingMinutes: diffMins,
-              status: "Checked Out",
-            };
-            upsertAttendanceRecordDb(autoRecord);
-            addActivity(`${r.member} auto checked out at 07:30 PM (System Rule)`, "status");
-            return autoRecord;
+            if (isTodayUnclosed || isPastDayUnclosed) {
+              changed = true;
+              // Check out time is fixed at 07:30:00 PM for automatic checkout
+              const autoCheckoutTimeStr = "07:30:00 PM";
+              const [rYear, rMonth, rDay] = r.date.split("-").map(Number);
+              const checkoutDate = new Date(rYear, rMonth - 1, rDay, 19, 30, 0, 0);
+              const checkoutTs = checkoutDate.getTime();
+              const diffMins = Math.max(1, Math.round((checkoutTs - r.checkInTimestamp) / 60000));
+
+              const autoRecord: AttendanceRecord = {
+                ...r,
+                checkOutTime: autoCheckoutTimeStr,
+                checkOutTimestamp: checkoutTs,
+                workingMinutes: diffMins,
+                status: "Checked Out",
+              };
+              upsertAttendanceRecordDb(autoRecord);
+              addActivity(`${r.member} auto checked out at 07:30 PM (${r.date})`, "status");
+              return autoRecord;
+            }
           }
           return r;
         });
