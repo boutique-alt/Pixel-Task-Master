@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { useCRM, AttendanceRecord, DailyReport, parseTimeToMs, getLocalDateString } from "@/context/CRMContext";
 import {
   Wifi,
@@ -27,6 +28,7 @@ import {
   Sparkles,
   ChevronDown,
   Volume2,
+  Download,
 } from "lucide-react";
 
 export default function AdminAttendancePage() {
@@ -48,13 +50,15 @@ export default function AdminAttendancePage() {
   const [activeTab, setActiveTab] = useState<"reports" | "logs" | "settings">("reports");
   const [todayStr, setTodayStr] = useState("");
   const [filterMember, setFilterMember] = useState("all");
-  const [filterDate, setFilterDate] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [isCapturingGps, setIsCapturingGps] = useState(false);
 
   // Daily Reports Filters & Copy state
   const [reportFilterMember, setReportFilterMember] = useState("all");
-  const [reportFilterDate, setReportFilterDate] = useState("");
+  const [reportStartDate, setReportStartDate] = useState("");
+  const [reportEndDate, setReportEndDate] = useState("");
   const [copiedReportId, setCopiedReportId] = useState<string | null>(null);
 
   // Edit row state
@@ -125,7 +129,8 @@ export default function AdminAttendancePage() {
   const seenMemberDates = new Set<string>();
   const filteredRecords = attendanceRecords.filter((r) => {
     if (filterMember !== "all" && r.member.toLowerCase() !== filterMember.toLowerCase()) return false;
-    if (filterDate && r.date !== filterDate) return false;
+    if (filterStartDate && r.date < filterStartDate) return false;
+    if (filterEndDate && r.date > filterEndDate) return false;
     const key = `${(r.member || "").trim().toLowerCase()}_${r.date}`;
     if (seenMemberDates.has(key)) return false;
     seenMemberDates.add(key);
@@ -147,11 +152,16 @@ export default function AdminAttendancePage() {
   };
 
   // Daily reports calculations
-  const effectiveReportDate = reportFilterDate || todayStr;
+  const isCustomReportRange = Boolean(reportStartDate || reportEndDate);
   const filteredDailyReports = dailyReports.filter((r) => {
     if (reportFilterMember !== "all" && r.member.toLowerCase() !== reportFilterMember.toLowerCase()) return false;
-    if (r.date !== effectiveReportDate) return false;
-    return true;
+    if (isCustomReportRange) {
+      if (reportStartDate && r.date < reportStartDate) return false;
+      if (reportEndDate && r.date > reportEndDate) return false;
+      return true;
+    }
+    // Default to today if no date filter specified
+    return r.date === todayStr;
   });
 
   const todayReports = dailyReports.filter((r) => r.date === todayStr);
@@ -162,6 +172,89 @@ export default function AdminAttendancePage() {
     navigator.clipboard.writeText(report.formattedText);
     setCopiedReportId(report.id);
     setTimeout(() => setCopiedReportId(null), 2500);
+  };
+
+  // Export Attendance Log to Excel
+  const handleExportAttendanceExcel = () => {
+    if (filteredRecords.length === 0) {
+      showToast("No attendance records to export for this date range.");
+      return;
+    }
+
+    const rows = filteredRecords.map((r, idx) => ({
+      "SL No": idx + 1,
+      "Member Name": r.member || "—",
+      "Date": r.date || "—",
+      "Check-In Time": r.checkInTime || "—",
+      "Check-Out Time": r.checkOutTime || "—",
+      "Total Hours": formatMinutes(r.workingMinutes),
+      "Verified Via": r.verifiedVia || "—",
+      "Status": r.status || "—",
+      "Late Reason": r.lateReason || "—",
+      "Admin Note": r.adminNote || "—",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Records");
+
+    const dateRangeLabel = filterStartDate && filterEndDate
+      ? `${filterStartDate}_to_${filterEndDate}`
+      : filterStartDate
+      ? `from_${filterStartDate}`
+      : filterEndDate
+      ? `until_${filterEndDate}`
+      : "all_dates";
+
+    const memberLabel = filterMember !== "all" ? `_${filterMember.replace(/\s+/g, "_")}` : "_all_members";
+    const filename = `Attendance_${dateRangeLabel}${memberLabel}.xlsx`;
+
+    XLSX.writeFile(workbook, filename);
+    showToast(`Downloaded ${filename} successfully!`);
+  };
+
+  // Export Daily Work Reports to Excel
+  const handleExportDailyReportsExcel = () => {
+    if (filteredDailyReports.length === 0) {
+      showToast("No daily reports to export for this date range.");
+      return;
+    }
+
+    const rows = filteredDailyReports.map((r, idx) => ({
+      "SL No": idx + 1,
+      "Member Name": r.member || "—",
+      "Role": r.memberRole || "—",
+      "Phone": r.memberPhone || "—",
+      "Date": r.date || "—",
+      "Submitted At": r.submittedTimeDisplay || "—",
+      "Attendance Status": r.attendanceStatus || "Present",
+      "Check-In": r.checkInTime || "—",
+      "Check-Out": r.checkOutTime || "—",
+      "Working Time": r.workingTimeDisplay || "—",
+      "Completed Tasks Count": r.completedTasks?.length || 0,
+      "Completed Tasks": (r.completedTasks || []).map((t) => `${t.name} (${t.category})`).join("; "),
+      "Pending Tasks Count": r.pendingTasks?.length || 0,
+      "Pending Tasks": (r.pendingTasks || []).map((t) => `${t.name} [${t.status || "Pending"}]`).join("; "),
+      "Member Remarks": r.remarks || "—",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Daily Reports");
+
+    const dateRangeLabel = reportStartDate && reportEndDate
+      ? `${reportStartDate}_to_${reportEndDate}`
+      : reportStartDate
+      ? `from_${reportStartDate}`
+      : reportEndDate
+      ? `until_${reportEndDate}`
+      : (todayStr || "today");
+
+    const memberLabel = reportFilterMember !== "all" ? `_${reportFilterMember.replace(/\s+/g, "_")}` : "_all_members";
+    const filename = `Daily_Reports_${dateRangeLabel}${memberLabel}.xlsx`;
+
+    XLSX.writeFile(workbook, filename);
+    showToast(`Downloaded ${filename} successfully!`);
   };
 
   return (
@@ -262,15 +355,41 @@ export default function AdminAttendancePage() {
 
             {/* Date and Member Filters */}
             <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs">
-                <Calendar size={14} className="text-gray-400" />
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs">
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase">From</span>
                 <input
                   type="date"
-                  value={reportFilterDate || todayStr}
-                  onChange={(e) => setReportFilterDate(e.target.value)}
+                  value={reportStartDate}
+                  onChange={(e) => setReportStartDate(e.target.value)}
                   className="bg-transparent font-bold outline-none text-gray-700 cursor-pointer text-xs"
                 />
               </div>
+
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs">
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase">To</span>
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  onChange={(e) => setReportEndDate(e.target.value)}
+                  className="bg-transparent font-bold outline-none text-gray-700 cursor-pointer text-xs"
+                />
+              </div>
+
+              {/* Quick helper button: Nov 1 to Today */}
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  const year = d.getFullYear();
+                  const month = String(d.getMonth() + 1).padStart(2, "0");
+                  setReportStartDate(`${year}-${month}-01`);
+                  setReportEndDate(todayStr);
+                }}
+                className="text-[11px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/60 rounded-xl px-2.5 py-1.5 hover:bg-blue-100 transition-colors cursor-pointer"
+                title="Filter from 1st of this month to today"
+              >
+                This Month So Far
+              </button>
 
               <select
                 value={reportFilterMember}
@@ -285,23 +404,34 @@ export default function AdminAttendancePage() {
                 ))}
               </select>
 
-              {(reportFilterDate !== "" || reportFilterMember !== "all") && (
+              {(reportStartDate !== "" || reportEndDate !== "" || reportFilterMember !== "all") && (
                 <button
                   type="button"
                   onClick={() => {
-                    setReportFilterDate("");
+                    setReportStartDate("");
+                    setReportEndDate("");
                     setReportFilterMember("all");
                   }}
                   className="text-xs text-blue-600 hover:text-blue-800 font-bold px-2 py-1 cursor-pointer"
                 >
-                  Reset
+                  Reset (Today)
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleExportDailyReportsExcel}
+                className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-2 flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer ml-auto sm:ml-0"
+                title="Download filtered reports as Excel file"
+              >
+                <Download size={14} />
+                <span>Export Reports ({filteredDailyReports.length})</span>
+              </button>
             </div>
           </div>
 
-          {/* Pending Submissions Warning Box (Only for Today) */}
-          {(!reportFilterDate || reportFilterDate === todayStr) && pendingMembersToday.length > 0 && reportFilterMember === "all" && (
+          {/* Pending Submissions Warning Box (Only for Today when no custom date range is active) */}
+          {!isCustomReportRange && pendingMembersToday.length > 0 && reportFilterMember === "all" && (
             <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
@@ -335,9 +465,11 @@ export default function AdminAttendancePage() {
               <div className="w-14 h-14 rounded-2xl bg-gray-50 text-gray-400 mx-auto flex items-center justify-center">
                 <FileText size={28} />
               </div>
-              <h3 className="text-sm font-bold text-gray-800">No Reports Submitted for this Date</h3>
+              <h3 className="text-sm font-bold text-gray-800">No Reports Found</h3>
               <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                No team member has submitted a daily report for {effectiveReportDate}. Members can submit via their dashboard or attendance page.
+                {isCustomReportRange
+                  ? `No team member submitted a report between ${reportStartDate || "any date"} and ${reportEndDate || "today"}.`
+                  : `No team member has submitted a daily report for today (${todayStr}). Members can submit via their dashboard or attendance page.`}
               </p>
             </div>
           ) : (
@@ -560,24 +692,48 @@ export default function AdminAttendancePage() {
                 ))}
               </select>
 
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="text-xs font-bold bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none"
-              />
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs">
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase">From</span>
+                <input
+                  type="date"
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
+                  className="bg-transparent font-bold outline-none text-gray-700 cursor-pointer text-xs"
+                />
+              </div>
 
-              {(filterMember !== "all" || filterDate) && (
+              <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs">
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase">To</span>
+                <input
+                  type="date"
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                  className="bg-transparent font-bold outline-none text-gray-700 cursor-pointer text-xs"
+                />
+              </div>
+
+              {(filterMember !== "all" || filterStartDate || filterEndDate) && (
                 <button
                   onClick={() => {
                     setFilterMember("all");
-                    setFilterDate("");
+                    setFilterStartDate("");
+                    setFilterEndDate("");
                   }}
                   className="text-xs font-bold text-blue-600 hover:underline px-2"
                 >
                   Reset
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleExportAttendanceExcel}
+                className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-2 flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer ml-auto sm:ml-0"
+                title="Download filtered attendance records as Excel file"
+              >
+                <Download size={14} />
+                <span>Export Attendance ({filteredRecords.length})</span>
+              </button>
             </div>
           </div>
 
