@@ -16,6 +16,7 @@ import {
   Settings,
   FileText,
   Bell,
+  FileCheck,
   X
 } from "lucide-react";
 
@@ -141,6 +142,14 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
                 <Landmark size={20} className={pathname.includes('/coordinator/bank-details') ? '' : 'opacity-70'} />
                 <span className="text-[14px]">Bank details</span>
               </Link>
+              <Link 
+                href="/coordinator/details" 
+                onClick={handleLinkClick}
+                className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/coordinator/details') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+              >
+                <FileCheck size={20} className={pathname.includes('/coordinator/details') ? '' : 'opacity-70'} />
+                <span className="text-[14px]">Member details</span>
+              </Link>
             </>
           ) : (
             <>
@@ -198,6 +207,16 @@ export default function Sidebar({ role = "admin", isOpen = false, onClose }: Sid
                 <Landmark size={20} className={pathname.includes('/bank-details') ? '' : 'opacity-70'} />
                 <span className="text-[14px]">Bank details</span>
               </Link>
+              {role === "member" && (
+                <Link 
+                  href={`/${role}/details`} 
+                  onClick={handleLinkClick}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-[12px] font-semibold transition-colors ${pathname.includes('/details') ? 'bg-[#1677FF] text-white font-bold' : 'text-[#A6C0E6] hover:bg-[#1C355E] hover:text-white'}`}
+                >
+                  <FileCheck size={20} className={pathname.includes('/details') ? '' : 'opacity-70'} />
+                  <span className="text-[14px]">Member details</span>
+                </Link>
+              )}
             </>
           )}
           

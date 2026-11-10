@@ -90,3 +90,65 @@ export function speakText(text: string) {
   }
 }
 
+// Birthday Celebration Musical Jingle + Personalized Voice Wish
+export function playBirthdayCelebrationSound(personName: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+
+      // "Happy Birthday to You" notes frequency in Hz
+      // Happy (C4 C4) Birth-(D4) -day (C4) to (F4) you (E4)
+      // Happy (C4 C4) Birth-(D4) -day (C4) to (G4) you (F4)
+      const notes = [
+        { f: 261.63, d: 0.28 }, // Hap- (C4)
+        { f: 261.63, d: 0.28 }, // py- (C4)
+        { f: 293.66, d: 0.55 }, // Birth- (D4)
+        { f: 261.63, d: 0.55 }, // day (C4)
+        { f: 349.23, d: 0.55 }, // to (F4)
+        { f: 329.63, d: 0.85 }, // you (E4)
+        { f: 0,      d: 0.20 }, // rest
+        { f: 261.63, d: 0.28 }, // Hap- (C4)
+        { f: 261.63, d: 0.28 }, // py- (C4)
+        { f: 293.66, d: 0.55 }, // Birth- (D4)
+        { f: 261.63, d: 0.55 }, // day (C4)
+        { f: 392.00, d: 0.55 }, // to (G4)
+        { f: 349.23, d: 0.95 }, // you! (F4)
+      ];
+
+      let currentTime = ctx.currentTime + 0.1;
+
+      notes.forEach((note) => {
+        if (note.f > 0) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = "triangle"; // Warm melodic organ/chime sound
+          osc.frequency.setValueAtTime(note.f, currentTime);
+
+          gain.gain.setValueAtTime(0, currentTime);
+          gain.gain.linearRampToValueAtTime(0.35, currentTime + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, currentTime + note.d);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(currentTime);
+          osc.stop(currentTime + note.d);
+        }
+        currentTime += note.d + 0.04;
+      });
+    }
+  } catch (err) {
+    console.warn("Birthday jingle music error:", err);
+  }
+
+  // Voice Announcement: "Happy Birthday [name of person]! Wishing you a wonderful day from Pixel Solution!"
+  setTimeout(() => {
+    speakText(`Happy Birthday ${personName}! Pixel Solution wishes you a fantastic and successful year ahead!`);
+  }, 1600);
+}
+
+

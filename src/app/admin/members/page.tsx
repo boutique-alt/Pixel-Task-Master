@@ -15,9 +15,16 @@ import {
   EyeOff, 
   ShieldCheck,
   Copy,
-  Check
+  Check,
+  FileCheck,
+  Download,
+  Calendar,
+  Phone,
+  MapPin,
+  CreditCard,
+  FileText
 } from "lucide-react";
-import { useCRM, Member } from "@/context/CRMContext";
+import { useCRM, Member, MemberProfileDetail } from "@/context/CRMContext";
 import { 
   findUserByMember, 
   upsertAppUser, 
@@ -26,11 +33,15 @@ import {
 } from "@/lib/authService";
 
 export default function AdminMembersPage() {
-  const { members, clients, addMember, updateMember, deleteMember } = useCRM();
+  const { members, clients, memberDetailsList, updateMemberProfileDetailStatus, addMember, updateMember, deleteMember } = useCRM();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editingPassword, setEditingPassword] = useState("123");
+
+  // Member KYC / Details Modal state
+  const [viewingDetailsMember, setViewingDetailsMember] = useState<Member | null>(null);
+  const [docPreviewModal, setDocPreviewModal] = useState<{ title: string; src: string; isPdf?: boolean } | null>(null);
 
   // Password reset modal state
   const [passwordModalMember, setPasswordModalMember] = useState<Member | null>(null);
@@ -252,6 +263,14 @@ export default function AdminMembersPage() {
                     </td>
                     <td className="py-4 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => setViewingDetailsMember(emp)} 
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#1677FF] rounded-lg text-[11px] font-bold transition-colors cursor-pointer border border-blue-200" 
+                          title="View Member KYC, PAN, Aadhaar & Offer Letter"
+                        >
+                          <FileCheck size={14} />
+                          <span>Member Details</span>
+                        </button>
                         <button 
                           onClick={() => handleOpenPasswordModal(emp)} 
                           className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border border-amber-200" 
@@ -641,6 +660,412 @@ export default function AdminMembersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Member Details & KYC Documents Modal for Admin */}
+      {viewingDetailsMember && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-[#E3EAF5]">
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 border-b border-[#E3EAF5] flex items-center justify-between bg-gradient-to-r from-blue-50/80 to-white">
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const detail = memberDetailsList.find(
+                    (m) => m.memberName.trim().toLowerCase() === viewingDetailsMember.name.trim().toLowerCase()
+                  );
+                  return (
+                    <div className="w-12 h-12 rounded-2xl overflow-hidden bg-[#1677FF] text-white flex items-center justify-center font-black text-lg shadow-sm border border-blue-200">
+                      {detail?.profilePhoto ? (
+                        <img src={detail.profilePhoto} alt={viewingDetailsMember.name} className="w-full h-full object-cover" />
+                      ) : (
+                        viewingDetailsMember.name[0]
+                      )}
+                    </div>
+                  );
+                })()}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-[#10254F]">{viewingDetailsMember.name}</h3>
+                    <span className="text-[10px] font-bold bg-blue-100 text-[#1677FF] px-2 py-0.5 rounded-full">
+                      {viewingDetailsMember.systemRole === "coordinator" ? "Coordinator" : "Member"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {viewingDetailsMember.role || "Team Member"} • {viewingDetailsMember.phone || viewingDetailsMember.email}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewingDetailsMember(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
+              {(() => {
+                const detail = memberDetailsList.find(
+                  (m) => m.memberName.trim().toLowerCase() === viewingDetailsMember.name.trim().toLowerCase()
+                );
+
+                if (!detail) {
+                  return (
+                    <div className="py-12 text-center space-y-3 bg-gray-50/60 rounded-2xl border border-gray-100">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-400 mx-auto flex items-center justify-center">
+                        <FileText size={24} />
+                      </div>
+                      <h4 className="text-sm font-bold text-gray-800">No Member Details Submitted Yet</h4>
+                      <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                        {viewingDetailsMember.name} has not submitted their PAN, Aadhaar, DOB, Address, or Signed Offer Letter yet.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-6">
+                    {/* Status Strip & Quick Verification Action */}
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">
+                          KYC Verification Status
+                        </span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span
+                            className={`text-xs font-black px-2.5 py-0.5 rounded-lg border ${
+                              detail.status === "Verified"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                            }`}
+                          >
+                            {detail.status || "Pending"}
+                          </span>
+                          <span className="text-xs text-gray-400">• Updated: {detail.updatedAt || "Recent"}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {detail.status !== "Verified" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateMemberProfileDetailStatus(detail.id, "Verified");
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                          >
+                            <CheckCircle2 size={14} />
+                            <span>Mark as Verified</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateMemberProfileDetailStatus(detail.id, "Pending");
+                            }}
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                          >
+                            <span>Mark as Pending</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Profile Photo Card if uploaded */}
+                    {detail.profilePhoto && (
+                      <div className="p-4 bg-blue-50/40 border border-blue-100 rounded-2xl flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden border border-blue-200 bg-white shadow-2xs">
+                            <img src={detail.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-extrabold text-[#1677FF] uppercase tracking-wider block">Official Profile Photo</span>
+                            <p className="text-xs font-bold text-gray-800 mt-0.5">Passport / Portrait Image</p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setDocPreviewModal({ title: `${viewingDetailsMember.name}'s Profile Photo`, src: detail.profilePhoto! })}
+                          className="px-3 py-1.5 bg-white hover:bg-blue-50 text-[#1677FF] border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Eye size={14} />
+                          <span>View Full Photo</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Basic Info Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                      <div className="p-3.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl space-y-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <Phone size={12} /> Alternate Phone Number
+                        </span>
+                        <p className="font-extrabold text-[#10254F] text-[13px]">
+                          {detail.alternateNumber || "Not Provided"}
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl space-y-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <Calendar size={12} /> Date of Birth (DOB)
+                        </span>
+                        <p className="font-extrabold text-[#10254F] text-[13px]">
+                          {detail.dob || "Not Provided"}
+                        </p>
+                      </div>
+
+                      <div className="p-3.5 bg-[#F8FAFC] border border-[#E3EAF5] rounded-xl space-y-1 sm:col-span-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                          <MapPin size={12} /> Full Residential Address
+                        </span>
+                        <p className="font-bold text-[#10254F] leading-relaxed">
+                          {detail.address || "Not Provided"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Government ID Cards: PAN & Aadhaar */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">
+                        Government Identity Cards
+                      </h4>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* PAN Card */}
+                        <div className="p-4 border border-gray-200 rounded-2xl bg-white space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                              <CreditCard size={15} className="text-[#1677FF]" />
+                              PAN Card
+                            </span>
+                            {detail.panNumber && (
+                              <span className="text-[11px] font-bold font-mono bg-blue-50 text-[#1677FF] px-2 py-0.5 rounded border border-blue-200">
+                                {detail.panNumber}
+                              </span>
+                            )}
+                          </div>
+
+                          {detail.panImage ? (
+                            <div className="space-y-2">
+                              <div
+                                onClick={() =>
+                                  setDocPreviewModal({
+                                    title: `${viewingDetailsMember.name}'s PAN Card`,
+                                    src: detail.panImage!,
+                                  })
+                                }
+                                className="relative w-full h-36 rounded-xl overflow-hidden border border-gray-200 cursor-pointer group bg-gray-50"
+                              >
+                                <img
+                                  src={detail.panImage}
+                                  alt="PAN Card"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1.5">
+                                  <Eye size={15} /> Click to Enlarge
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDocPreviewModal({
+                                    title: `${viewingDetailsMember.name}'s PAN Card`,
+                                    src: detail.panImage!,
+                                  })
+                                }
+                                className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-xs font-bold border border-gray-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <Eye size={14} />
+                                <span>Preview Full PAN</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic py-6 text-center bg-gray-50 rounded-xl">
+                              No PAN image uploaded
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Aadhaar Card */}
+                        <div className="p-4 border border-gray-200 rounded-2xl bg-white space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                              <CreditCard size={15} className="text-purple-600" />
+                              Aadhaar Card
+                            </span>
+                            {detail.aadharNumber && (
+                              <span className="text-[11px] font-bold font-mono bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200">
+                                {detail.aadharNumber}
+                              </span>
+                            )}
+                          </div>
+
+                          {detail.aadharImage ? (
+                            <div className="space-y-2">
+                              <div
+                                onClick={() =>
+                                  setDocPreviewModal({
+                                    title: `${viewingDetailsMember.name}'s Aadhaar Card`,
+                                    src: detail.aadharImage!,
+                                  })
+                                }
+                                className="relative w-full h-36 rounded-xl overflow-hidden border border-gray-200 cursor-pointer group bg-gray-50"
+                              >
+                                <img
+                                  src={detail.aadharImage}
+                                  alt="Aadhaar Card"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs gap-1.5">
+                                  <Eye size={15} /> Click to Enlarge
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDocPreviewModal({
+                                    title: `${viewingDetailsMember.name}'s Aadhaar Card`,
+                                    src: detail.aadharImage!,
+                                  })
+                                }
+                                className="w-full py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl text-xs font-bold border border-gray-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <Eye size={14} />
+                                <span>Preview Full Aadhaar</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400 italic py-6 text-center bg-gray-50 rounded-xl">
+                              No Aadhaar image uploaded
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Offer Letter Signed PDF Box */}
+                    <div className="p-4 border border-amber-200 bg-amber-50/40 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                          <FileText size={16} className="text-amber-700" />
+                          Offer Letter Signed PDF
+                        </span>
+                        {detail.offerLetterSignedPdf && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Document Attached
+                          </span>
+                        )}
+                      </div>
+
+                      {detail.offerLetterSignedPdf ? (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-200">
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 font-bold text-xs">
+                              PDF
+                            </div>
+                            <span className="text-xs font-bold text-gray-800 truncate">
+                              {detail.offerLetterFileName || "Signed_Offer_Letter.pdf"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDocPreviewModal({
+                                  title: `${viewingDetailsMember.name}'s Signed Offer Letter`,
+                                  src: detail.offerLetterSignedPdf!,
+                                  isPdf: detail.offerLetterSignedPdf!.startsWith("data:application/pdf"),
+                                })
+                              }
+                              className="px-3 py-1.5 bg-[#1677FF] hover:bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                            >
+                              <Eye size={14} />
+                              <span>View / Preview</span>
+                            </button>
+
+                            <a
+                              href={detail.offerLetterSignedPdf}
+                              download={`${viewingDetailsMember.name}_Signed_Offer_Letter.pdf`}
+                              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Download size={14} />
+                              <span>Download</span>
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic py-4 text-center bg-white rounded-xl border border-amber-100">
+                          Signed offer letter not yet uploaded by member.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-[#E3EAF5] bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingDetailsMember(null)}
+                className="px-5 py-2.5 bg-white hover:bg-gray-100 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Document / Image / PDF Preview Modal */}
+      {docPreviewModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden border border-gray-200">
+            <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <h3 className="text-sm font-black text-gray-900">{docPreviewModal.title}</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={docPreviewModal.src}
+                  download="document"
+                  className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                  title="Download File"
+                >
+                  <Download size={18} />
+                </a>
+                <button
+                  onClick={() => setDocPreviewModal(null)}
+                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-gray-100/60">
+              {docPreviewModal.isPdf ? (
+                <iframe
+                  src={docPreviewModal.src}
+                  title={docPreviewModal.title}
+                  className="w-full h-[68vh] rounded-xl border border-gray-200"
+                />
+              ) : (
+                <img
+                  src={docPreviewModal.src}
+                  alt={docPreviewModal.title}
+                  className="max-h-[72vh] max-w-full rounded-xl object-contain shadow-sm border border-gray-200"
+                />
+              )}
+            </div>
           </div>
         </div>
       )}

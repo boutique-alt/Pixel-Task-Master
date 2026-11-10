@@ -563,7 +563,10 @@ export function isRealOfficeRule(d: any): boolean {
     id.startsWith("alert_") ||
     id.startsWith("hol_") ||
     id.startsWith("hols_") ||
-    id.startsWith("photo_")
+    id.startsWith("photo_") ||
+    id.startsWith("mdoc_") ||
+    id.startsWith("md_") ||
+    id.startsWith("bday_")
   ) {
     return false;
   }
@@ -576,6 +579,8 @@ export function isRealOfficeRule(d: any): boolean {
     cat === "Timing & Attendance Config" ||
     cat === "Company Holiday" ||
     cat === "Holiday Selection" ||
+    cat === "Member Details" ||
+    cat === "Birthday Interaction" ||
     cat.toLowerCase().includes("photo")
   ) {
     return false;
@@ -963,6 +968,97 @@ export async function deleteMemberHolidaySelectionDb(id: string) {
     if (error) console.error("deleteMemberHolidaySelectionDb error:", error);
   } catch (err) {
     console.warn("deleteMemberHolidaySelectionDb error:", err);
+  }
+}
+
+// 12. Member Details & KYC Documents (PAN, Aadhaar, DOB, Address, Offer Letter)
+export async function fetchMemberDetailsListDb(): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("*")
+      .eq("category", "Member Details");
+    if (error) return null;
+    if (!data) return [];
+
+    const details: any[] = [];
+    for (const d of data) {
+      if (d.description) {
+        try {
+          details.push(JSON.parse(d.description));
+        } catch {
+          // ignore parsing error
+        }
+      }
+    }
+    return details;
+  } catch (err) {
+    console.warn("fetchMemberDetailsListDb error:", err);
+    return null;
+  }
+}
+
+export async function upsertMemberDetailsDb(detail: any) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: detail.id,
+      category: "Member Details",
+      title: detail.memberName,
+      description: JSON.stringify(detail),
+    });
+    if (error) console.error("upsertMemberDetailsDb error:", error);
+  } catch (err) {
+    console.warn("upsertMemberDetailsDb error:", err);
+  }
+}
+
+export async function deleteMemberDetailsDb(id: string) {
+  try {
+    const { error } = await supabase.from("office_rules").delete().eq("id", id);
+    if (error) console.error("deleteMemberDetailsDb error:", error);
+  } catch (err) {
+    console.warn("deleteMemberDetailsDb error:", err);
+  }
+}
+
+// 13. Birthday Interactions (Wishes, Likes & Comments Cloud Sync)
+export async function fetchBirthdayInteractionsDb(): Promise<any[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from("office_rules")
+      .select("*")
+      .eq("category", "Birthday Interaction");
+    if (error) return null;
+    if (!data) return [];
+
+    const interactions: any[] = [];
+    for (const d of data) {
+      if (d.description) {
+        try {
+          interactions.push(JSON.parse(d.description));
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return interactions;
+  } catch (err) {
+    console.warn("fetchBirthdayInteractionsDb error:", err);
+    return null;
+  }
+}
+
+export async function upsertBirthdayInteractionDb(interaction: any) {
+  try {
+    const { error } = await supabase.from("office_rules").upsert({
+      id: interaction.id,
+      category: "Birthday Interaction",
+      title: `${interaction.birthdayMember}_${interaction.year}`,
+      description: JSON.stringify(interaction),
+    });
+    if (error) console.error("upsertBirthdayInteractionDb error:", error);
+  } catch (err) {
+    console.warn("upsertBirthdayInteractionDb error:", err);
   }
 }
 

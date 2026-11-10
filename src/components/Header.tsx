@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Search, Bell, Users, LogOut, ShieldCheck, UserCheck, Menu } from "lucide-react";
 import { useCRM } from "@/context/CRMContext";
 import InstallAppPrompt from "@/components/InstallAppPrompt";
+import BirthdayCelebrationBanner from "@/components/BirthdayCelebrationBanner";
 
 interface HeaderProps {
   title?: string;
@@ -30,11 +31,13 @@ const ROUTE_INFO: Record<string, { title: string; subtitle: string }> = {
   "/coordinator/leave": { title: "Apply for Leave", subtitle: "Submit and track your leave requests & chosen holidays" },
   "/coordinator/hr-rules": { title: "Office Rules & HR", subtitle: "Company guidelines and announcements" },
   "/coordinator/bank-details": { title: "My Bank Details", subtitle: "Your bank account and payment info" },
+  "/coordinator/details": { title: "Member Details & KYC", subtitle: "PAN, Aadhaar, DOB, Address & Signed Offer Letter" },
   "/member/tasks": { title: "My Tasklist", subtitle: "View and update your assigned tasks" },
   "/member/leave": { title: "Apply for Leave", subtitle: "Submit and track your leave requests" },
   "/member/attendance": { title: "My Attendance", subtitle: "Daily punch in, punch out & working hours" },
   "/member/hr-rules": { title: "Office Rules & HR", subtitle: "Company guidelines and announcements" },
   "/member/bank-details": { title: "My Bank Details", subtitle: "Your bank account and payment info" },
+  "/member/details": { title: "Member Details & KYC", subtitle: "PAN, Aadhaar, DOB, Address & Signed Offer Letter" },
 };
 
 export default function Header({
@@ -163,6 +166,9 @@ export default function Header({
         
         {/* Install App Button */}
         <InstallAppPrompt variant="header" />
+
+        {/* Birthday Celebration Banner / Button (Active when any member/coordinator has birthday today) */}
+        <BirthdayCelebrationBanner />
 
         {/* Notifications Dropdown */}
         <div className="relative" ref={dropdownRef}>

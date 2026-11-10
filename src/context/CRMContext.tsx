@@ -54,6 +54,11 @@ import {
   fetchMemberHolidaySelectionsDb,
   upsertMemberHolidaySelectionDb,
   deleteMemberHolidaySelectionDb,
+  fetchMemberDetailsListDb,
+  upsertMemberDetailsDb,
+  deleteMemberDetailsDb,
+  fetchBirthdayInteractionsDb,
+  upsertBirthdayInteractionDb,
 } from "@/lib/crmService";
 import { 
   CompanyHoliday, 
@@ -185,6 +190,41 @@ export type OfficeRule = {
   description: string;
 };
 
+export type MemberProfileDetail = {
+  id: string;
+  memberName: string;
+  profilePhoto?: string; // base64 or file URL (Member profile picture)
+  panNumber?: string;
+  panImage?: string; // base64 or file URL
+  aadharNumber?: string;
+  aadharImage?: string; // base64 or file URL
+  alternateNumber?: string;
+  dob?: string; // YYYY-MM-DD
+  address?: string;
+  offerLetterSignedPdf?: string; // base64 or file URL (pdf/doc/image)
+  offerLetterFileName?: string;
+  status: "Verified" | "Pending" | "Incomplete";
+  updatedAt: string;
+};
+
+export type BirthdayComment = {
+  id: string;
+  authorName: string;
+  authorRole?: string;
+  authorPhoto?: string;
+  text: string;
+  createdAt: string; // ISO or formatted
+};
+
+export type BirthdayInteraction = {
+  id: string; // bday_year_memberName
+  birthdayMember: string;
+  year: number; // e.g. 2026
+  likes: string[]; // member names who liked
+  comments: BirthdayComment[];
+  updatedAt: string;
+};
+
 export type MemberBankDetail = {
   id: string;
   member: string;
@@ -288,6 +328,15 @@ interface CRMContextType {
   // Bank Details & Salary Payments State
   bankDetails: MemberBankDetail[];
   salaryPayments: SalaryPaymentRecord[];
+  // Member Details & KYC Documents State
+  memberDetailsList: MemberProfileDetail[];
+  saveMemberProfileDetail: (data: Omit<MemberProfileDetail, "id" | "updatedAt">) => void;
+  updateMemberProfileDetailStatus: (id: string, status: MemberProfileDetail["status"]) => void;
+  deleteMemberProfileDetail: (id: string) => void;
+  // Birthday Celebration & Interactions State
+  birthdayInteractions: BirthdayInteraction[];
+  toggleBirthdayLike: (birthdayMember: string, likerName: string) => void;
+  addBirthdayComment: (birthdayMember: string, authorName: string, text: string, authorRole?: string, authorPhoto?: string) => void;
   // Daily Reports State (Tamper-Proof)
   dailyReports: DailyReport[];
   submitDailyReport: (report: Omit<DailyReport, "id" | "isLocked" | "submittedAt" | "submittedTimeDisplay">) => Promise<{ success: boolean; report: DailyReport }>;
@@ -540,6 +589,8 @@ const STORAGE_KEYS = {
   COMPANY_HOLIDAYS: "ptm_crm_company_holidays_v1",
   HOLIDAY_SELECTIONS: "ptm_crm_holiday_selections_v1",
   IMPORTANT_CLIENTS: "ptm_crm_important_clients_v1",
+  MEMBER_DETAILS: "ptm_crm_member_details_v1",
+  BIRTHDAY_INTERACTIONS: "ptm_crm_birthday_interactions_v1",
 };
 
 const CRMContext = createContext<CRMContextType | undefined>(undefined);
@@ -686,6 +737,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const [broadcastAlerts, setBroadcastAlerts] = useState<BroadcastAlert[]>([]);
   const [companyHolidays, setCompanyHolidays] = useState<CompanyHoliday[]>(INITIAL_COMPANY_HOLIDAYS);
   const [memberHolidaySelections, setMemberHolidaySelections] = useState<MemberHolidaySelection[]>([]);
+  const [memberDetailsList, setMemberDetailsList] = useState<MemberProfileDetail[]>([]);
+  const [birthdayInteractions, setBirthdayInteractions] = useState<BirthdayInteraction[]>([]);
   const [importantClients, setImportantClients] = useState<string[]>([]);
 
   const [isHydrated, setIsHydrated] = useState(false);
@@ -723,6 +776,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       const savedBroadcastAlerts = localStorage.getItem(STORAGE_KEYS.BROADCAST_ALERTS);
       const savedHolidays = localStorage.getItem(STORAGE_KEYS.COMPANY_HOLIDAYS);
       const savedHolidaySelections = localStorage.getItem(STORAGE_KEYS.HOLIDAY_SELECTIONS);
+      const savedMemberDetails = localStorage.getItem(STORAGE_KEYS.MEMBER_DETAILS);
 
       let parsedClients: Client[] | null = null;
       if (savedClients) {
@@ -759,6 +813,19 @@ export function CRMProvider({ children }: { children: ReactNode }) {
         }
       }
       if (savedBankDetails) setBankDetails(JSON.parse(savedBankDetails));
+      if (savedMemberDetails) {
+        try {
+          const parsed = JSON.parse(savedMemberDetails);
+          if (Array.isArray(parsed)) setMemberDetailsList(parsed);
+        } catch {}
+      }
+      const savedBirthdayInteractions = localStorage.getItem(STORAGE_KEYS.BIRTHDAY_INTERACTIONS);
+      if (savedBirthdayInteractions) {
+        try {
+          const parsed = JSON.parse(savedBirthdayInteractions);
+          if (Array.isArray(parsed)) setBirthdayInteractions(parsed);
+        } catch {}
+      }
       if (savedSalaryPayments) setSalaryPayments(JSON.parse(savedSalaryPayments));
       if (savedDailyReports) setDailyReports(JSON.parse(savedDailyReports));
       if (savedBroadcastAlerts) setBroadcastAlerts(JSON.parse(savedBroadcastAlerts));
@@ -901,6 +968,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             fetchBroadcastAlertsDb(),
             fetchCompanyHolidaysDb(),
             fetchMemberHolidaySelectionsDb(),
+            fetchMemberDetailsListDb(),
+            fetchBirthdayInteractionsDb(),
           ] as const;
 
           const [
@@ -921,6 +990,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             dbAlerts,
             dbHolidays,
             dbSelections,
+            dbMemberDetails,
+            dbBirthdayInteractions,
           ] = await Promise.all(fetchPromises);
 
           if (dbConfig) {
@@ -1008,6 +1079,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           if (dbAlerts && dbAlerts.length > 0) setBroadcastAlerts(dbAlerts);
           if (dbHolidays && dbHolidays.length > 0) setCompanyHolidays(dbHolidays);
           if (dbSelections && dbSelections.length > 0) setMemberHolidaySelections(dbSelections);
+          if (dbMemberDetails && dbMemberDetails.length > 0) setMemberDetailsList(dbMemberDetails);
+          if (dbBirthdayInteractions && dbBirthdayInteractions.length > 0) setBirthdayInteractions(dbBirthdayInteractions);
         } catch (err) {
           console.warn("Supabase initial sync error:", err);
         } finally {
@@ -1061,6 +1134,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           setBroadcastAlerts(JSON.parse(e.newValue));
         } else if (e.key === STORAGE_KEYS.IMPORTANT_CLIENTS && e.newValue) {
           setImportantClients(JSON.parse(e.newValue));
+        } else if (e.key === STORAGE_KEYS.MEMBER_DETAILS && e.newValue) {
+          setMemberDetailsList(JSON.parse(e.newValue));
+        } else if (e.key === STORAGE_KEYS.BIRTHDAY_INTERACTIONS && e.newValue) {
+          setBirthdayInteractions(JSON.parse(e.newValue));
         }
       } catch (err) {
         console.error("Error syncing CRM state across tabs", err);
@@ -1202,6 +1279,16 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     if (!isHydrated) return;
     try { localStorage.setItem(STORAGE_KEYS.IMPORTANT_CLIENTS, JSON.stringify(importantClients)); } catch (e) { console.error(e); }
   }, [importantClients, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    try { localStorage.setItem(STORAGE_KEYS.MEMBER_DETAILS, JSON.stringify(memberDetailsList)); } catch (e) { console.error(e); }
+  }, [memberDetailsList, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    try { localStorage.setItem(STORAGE_KEYS.BIRTHDAY_INTERACTIONS, JSON.stringify(birthdayInteractions)); } catch (e) { console.error(e); }
+  }, [birthdayInteractions, isHydrated]);
 
   const addActivity = (text: string, type: Activity["type"]) => {
     const newActivity: Activity = {
@@ -2005,6 +2092,136 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     setSalaryPayments((prev) => prev.filter((p) => p.id !== id));
   };
 
+  // --- MEMBER PROFILE & KYC DETAILS (PAN, AADHAAR, DOB, ADDRESS, OFFER LETTER) ---
+  const saveMemberProfileDetail = (data: Omit<MemberProfileDetail, "id" | "updatedAt">) => {
+    const todayStr = getLocalDateString();
+    let toSave: MemberProfileDetail | null = null;
+    setMemberDetailsList((prev) => {
+      const existing = prev.find(
+        (m) => m.memberName.trim().toLowerCase() === data.memberName.trim().toLowerCase()
+      );
+      if (existing) {
+        toSave = { ...existing, ...data, updatedAt: todayStr };
+        return prev.map((m) => (m.id === existing.id ? toSave! : m));
+      }
+      toSave = {
+        ...data,
+        id: "mdoc_" + data.memberName.trim().toLowerCase().replace(/\s+/g, "_"),
+        updatedAt: todayStr,
+      };
+      return [toSave, ...prev];
+    });
+    if (toSave) {
+      upsertMemberDetailsDb(toSave);
+      try {
+        localStorage.setItem(STORAGE_KEYS.MEMBER_DETAILS, JSON.stringify([toSave, ...memberDetailsList.filter(m => m.id !== toSave!.id)]));
+      } catch {}
+    }
+    addActivity(`${data.memberName} updated Member KYC & Identity Details`, "add");
+  };
+
+  const updateMemberProfileDetailStatus = (id: string, status: MemberProfileDetail["status"]) => {
+    const target = memberDetailsList.find((m) => m.id === id);
+    if (target) {
+      const updated = { ...target, status, updatedAt: getLocalDateString() };
+      upsertMemberDetailsDb(updated);
+      setMemberDetailsList((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    }
+  };
+
+  const deleteMemberProfileDetail = (id: string) => {
+    deleteMemberDetailsDb(id);
+    setMemberDetailsList((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  // --- BIRTHDAY CELEBRATION (LIKES & COMMENTS) ---
+  const toggleBirthdayLike = (birthdayMember: string, likerName: string) => {
+    const currentYear = new Date().getFullYear();
+    const cleanBdayMember = birthdayMember.trim();
+    const cleanLiker = likerName.trim();
+    const id = `bday_${currentYear}_${cleanBdayMember.toLowerCase().replace(/\s+/g, "_")}`;
+    const nowStr = new Date().toISOString();
+
+    let targetInteraction: BirthdayInteraction | null = null;
+
+    setBirthdayInteractions((prev) => {
+      const existing = prev.find((item) => item.id === id);
+      if (existing) {
+        const hasLiked = existing.likes.includes(cleanLiker);
+        const newLikes = hasLiked
+          ? existing.likes.filter((l) => l !== cleanLiker)
+          : [...existing.likes, cleanLiker];
+        targetInteraction = { ...existing, likes: newLikes, updatedAt: nowStr };
+        return prev.map((item) => (item.id === id ? targetInteraction! : item));
+      }
+      targetInteraction = {
+        id,
+        birthdayMember: cleanBdayMember,
+        year: currentYear,
+        likes: [cleanLiker],
+        comments: [],
+        updatedAt: nowStr,
+      };
+      return [targetInteraction, ...prev];
+    });
+
+    if (targetInteraction) {
+      upsertBirthdayInteractionDb(targetInteraction);
+    }
+  };
+
+  const addBirthdayComment = (
+    birthdayMember: string,
+    authorName: string,
+    text: string,
+    authorRole?: string,
+    authorPhoto?: string
+  ) => {
+    if (!text.trim()) return;
+    const currentYear = new Date().getFullYear();
+    const cleanBdayMember = birthdayMember.trim();
+    const cleanAuthor = authorName.trim();
+    const id = `bday_${currentYear}_${cleanBdayMember.toLowerCase().replace(/\s+/g, "_")}`;
+    const nowStr = new Date().toISOString();
+
+    const newComment: BirthdayComment = {
+      id: "cm_" + Math.random().toString(36).substring(2, 9),
+      authorName: cleanAuthor,
+      authorRole: authorRole || "Team Member",
+      authorPhoto: authorPhoto || undefined,
+      text: text.trim(),
+      createdAt: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
+    };
+
+    let targetInteraction: BirthdayInteraction | null = null;
+
+    setBirthdayInteractions((prev) => {
+      const existing = prev.find((item) => item.id === id);
+      if (existing) {
+        targetInteraction = {
+          ...existing,
+          comments: [...existing.comments, newComment],
+          updatedAt: nowStr,
+        };
+        return prev.map((item) => (item.id === id ? targetInteraction! : item));
+      }
+      targetInteraction = {
+        id,
+        birthdayMember: cleanBdayMember,
+        year: currentYear,
+        likes: [],
+        comments: [newComment],
+        updatedAt: nowStr,
+      };
+      return [targetInteraction, ...prev];
+    });
+
+    if (targetInteraction) {
+      upsertBirthdayInteractionDb(targetInteraction);
+      addActivity(`${cleanAuthor} wished happy birthday to ${cleanBdayMember} 🎂`, "comment");
+    }
+  };
+
   const submitDailyReport = async (
     reportData: Omit<DailyReport, "id" | "isLocked" | "submittedAt" | "submittedTimeDisplay">
   ): Promise<{ success: boolean; report: DailyReport }> => {
@@ -2282,6 +2499,8 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       currentDeviceId, currentNetworkIp, isCloudSynced,
       hrNotices, officeRules,
       bankDetails, salaryPayments,
+      memberDetailsList, saveMemberProfileDetail, updateMemberProfileDetailStatus, deleteMemberProfileDetail,
+      birthdayInteractions, toggleBirthdayLike, addBirthdayComment,
       dailyReports, submitDailyReport, deleteDailyReport,
       broadcastAlerts, sendBroadcastAlert, acknowledgeAlert, deleteBroadcastAlert,
       companyHolidays, memberHolidaySelections, addCompanyHoliday, deleteCompanyHoliday, saveMemberHolidaySelection, updateMemberHolidaySelectionStatus,
