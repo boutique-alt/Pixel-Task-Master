@@ -65,8 +65,9 @@ export default function MemberDetailsPage() {
     }
   }, [existingDetail, activeMemberName, isHydrated]);
 
-  // Image compressor to keep base64 tiny (< 150KB) so localStorage & DB are ultra-fast
-  const compressImage = (file: File, maxWidth = 900, maxHeight = 900, quality = 0.75): Promise<string> => {
+  // Image compressor: downscales image to max 640px and 0.65 quality (typically 30-50KB)
+  // This ensures lightning fast Supabase upload without timeouts or localStorage quota issues.
+  const compressImage = (file: File, maxWidth = 640, maxHeight = 640, quality = 0.65): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -116,7 +117,7 @@ export default function MemberDetailsPage() {
 
     if (file.type.startsWith("image/")) {
       try {
-        const compressedBase64 = await compressImage(file, 900, 900, 0.75);
+        const compressedBase64 = await compressImage(file, 640, 640, 0.65);
         setter(compressedBase64);
       } catch {
         const reader = new FileReader();
