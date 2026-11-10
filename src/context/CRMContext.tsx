@@ -322,6 +322,7 @@ interface CRMContextType {
   currentDeviceId: string;
   currentNetworkIp: string;
   isCloudSynced: boolean;
+  isHydrated: boolean;
   // HR Rules & Notices State
   hrNotices: HRNotice[];
   officeRules: OfficeRule[];
@@ -2096,26 +2097,31 @@ export function CRMProvider({ children }: { children: ReactNode }) {
   const saveMemberProfileDetail = (data: Omit<MemberProfileDetail, "id" | "updatedAt">) => {
     const todayStr = getLocalDateString();
     let toSave: MemberProfileDetail | null = null;
+    let nextList: MemberProfileDetail[] = [];
     setMemberDetailsList((prev) => {
       const existing = prev.find(
         (m) => m.memberName.trim().toLowerCase() === data.memberName.trim().toLowerCase()
       );
       if (existing) {
         toSave = { ...existing, ...data, updatedAt: todayStr };
-        return prev.map((m) => (m.id === existing.id ? toSave! : m));
+        nextList = prev.map((m) => (m.id === existing.id ? toSave! : m));
+      } else {
+        toSave = {
+          ...data,
+          id: "mdoc_" + data.memberName.trim().toLowerCase().replace(/\s+/g, "_"),
+          updatedAt: todayStr,
+        };
+        nextList = [toSave, ...prev];
       }
-      toSave = {
-        ...data,
-        id: "mdoc_" + data.memberName.trim().toLowerCase().replace(/\s+/g, "_"),
-        updatedAt: todayStr,
-      };
-      return [toSave, ...prev];
+      return nextList;
     });
     if (toSave) {
       upsertMemberDetailsDb(toSave);
       try {
-        localStorage.setItem(STORAGE_KEYS.MEMBER_DETAILS, JSON.stringify([toSave, ...memberDetailsList.filter(m => m.id !== toSave!.id)]));
-      } catch {}
+        localStorage.setItem(STORAGE_KEYS.MEMBER_DETAILS, JSON.stringify(nextList.length > 0 ? nextList : [toSave]));
+      } catch (e) {
+        console.warn("localStorage quota warning for member details:", e);
+      }
     }
     addActivity(`${data.memberName} updated Member KYC & Identity Details`, "add");
   };
@@ -2496,7 +2502,7 @@ export function CRMProvider({ children }: { children: ReactNode }) {
       sessionUser, logout,
       leaveTypes, leaveRequests,
       attendanceConfig, authorizedDevices, attendanceRecords,
-      currentDeviceId, currentNetworkIp, isCloudSynced,
+      currentDeviceId, currentNetworkIp, isCloudSynced, isHydrated,
       hrNotices, officeRules,
       bankDetails, salaryPayments,
       memberDetailsList, saveMemberProfileDetail, updateMemberProfileDetailStatus, deleteMemberProfileDetail,

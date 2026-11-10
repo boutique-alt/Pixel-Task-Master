@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 export default function MemberDetailsPage() {
-  const { currentMember, sessionUser, memberDetailsList, saveMemberProfileDetail } = useCRM();
+  const { currentMember, sessionUser, memberDetailsList, saveMemberProfileDetail, isHydrated } = useCRM();
 
   // Active member identification
   const activeMemberName =
@@ -47,8 +47,10 @@ export default function MemberDetailsPage() {
   const [savedToast, setSavedToast] = useState(false);
   const [previewModal, setPreviewModal] = useState<{ title: string; src: string; isPdf?: boolean } | null>(null);
 
-  // Sync inputs on existingDetail or activeMember change
+  // Sync inputs on existingDetail or activeMember change only after hydration to prevent wiping
   useEffect(() => {
+    if (!isHydrated) return;
+
     if (existingDetail) {
       setProfilePhoto(existingDetail.profilePhoto || "");
       setPanNumber(existingDetail.panNumber || "");
@@ -60,22 +62,47 @@ export default function MemberDetailsPage() {
       setAddress(existingDetail.address || "");
       setOfferLetterSignedPdf(existingDetail.offerLetterSignedPdf || "");
       setOfferLetterFileName(existingDetail.offerLetterFileName || "");
-    } else {
-      setProfilePhoto("");
-      setPanNumber("");
-      setPanImage("");
-      setAadharNumber("");
-      setAadharImage("");
-      setAlternateNumber("");
-      setDob("");
-      setAddress("");
-      setOfferLetterSignedPdf("");
-      setOfferLetterFileName("");
     }
-  }, [existingDetail, activeMemberName]);
+  }, [existingDetail, activeMemberName, isHydrated]);
 
-  // Generic file upload to base64
-  const handleFileUpload = (
+  // Image compressor to keep base64 tiny (< 150KB) so localStorage & DB are ultra-fast
+  const compressImage = (file: File, maxWidth = 900, maxHeight = 900, quality = 0.75): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL("image/jpeg", quality);
+            resolve(compressed);
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Generic file upload to base64 with auto-compression for photos
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (val: string) => void,
     nameSetter?: (name: string) => void
@@ -87,13 +114,26 @@ export default function MemberDetailsPage() {
       nameSetter(file.name);
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        setter(reader.result);
+    if (file.type.startsWith("image/")) {
+      try {
+        const compressedBase64 = await compressImage(file, 900, 900, 0.75);
+        setter(compressedBase64);
+      } catch {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") setter(reader.result);
+        };
+        reader.readAsDataURL(file);
       }
-    };
-    reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          setter(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
