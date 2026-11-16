@@ -9,7 +9,7 @@ import MemberSendReportModal from "@/components/MemberSendReportModal";
 import TaskDateFilterBar from "@/components/TaskDateFilterBar";
 
 export default function MemberDashboard() {
-  const { clients, currentMember, leaveTypes, leaveRequests, attendanceRecords, attendanceConfig, hrNotices, updateStatus, updateComment } = useCRM();
+  const { clients, currentMember, sessionUser, leaveTypes, leaveRequests, attendanceRecords, attendanceConfig, hrNotices, updateStatus, updateComment } = useCRM();
   
   const [dateFilterMode, setDateFilterMode] = useState<"today" | "tomorrow" | "custom" | "all">("today");
   const [selectedDate, setSelectedDate] = useState("");
@@ -17,7 +17,7 @@ export default function MemberDashboard() {
   const [progressFilter, setProgressFilter] = useState("today");
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  const activeMemberName = currentMember || "Rahim";
+  const activeMemberName = sessionUser?.name || currentMember || "Rahim";
   
   const tasks = activeMemberName === "all"
     ? clients

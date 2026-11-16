@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 
 export default function MemberBankDetailsPage() {
-  const { currentMember, bankDetails, salaryPayments, saveMemberBankDetail } = useCRM();
+  const { currentMember, sessionUser, bankDetails, salaryPayments, saveMemberBankDetail } = useCRM();
 
-  const activeMemberName = currentMember && currentMember !== "all" ? currentMember : "Rahim";
+  const activeMemberName = sessionUser?.name || (currentMember && currentMember !== "all" ? currentMember : "Rahim");
 
   const myBank = bankDetails.find(
     (b) => b.member.trim().toLowerCase() === activeMemberName.trim().toLowerCase()

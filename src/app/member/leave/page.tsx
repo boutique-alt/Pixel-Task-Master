@@ -26,6 +26,7 @@ export default function LeaveApply() {
     leaveRequests,
     currentMember,
     setCurrentMember,
+    sessionUser,
     members,
     applyLeave,
     deleteLeaveRequest,
@@ -36,7 +37,8 @@ export default function LeaveApply() {
 
   const [activeTab, setActiveTab] = useState<"holidays" | "regular">("holidays");
 
-  const activeMemberName = currentMember === "all" ? (members[0]?.name || "Rahim") : (currentMember || "Rahim");
+  // In Member/Coordinator portal, always bind to logged-in user so privacy is never breached
+  const activeMemberName = sessionUser?.name || (currentMember && currentMember !== "all" ? currentMember : (members[0]?.name || "Rahim"));
   const activeLeaveTypes = leaveTypes.filter((lt) => lt.active);
 
   // Regular Leave form state
@@ -199,21 +201,27 @@ export default function LeaveApply() {
           </div>
         </div>
 
-        {/* Active Member Switcher */}
+        {/* Active Member Badge - Locked to logged-in user or switchable only by Admin */}
         <div className="flex items-center gap-2 bg-white border border-[#E3EAF5] rounded-xl px-3.5 py-2 shadow-sm self-start sm:self-auto">
           <Users size={16} className="text-[#8B5CF6]" />
           <span className="text-[12px] font-bold text-[#64748B]">Applying as:</span>
-          <select
-            value={activeMemberName}
-            onChange={(e) => setCurrentMember(e.target.value)}
-            className="text-[13px] font-extrabold text-[#8B5CF6] bg-transparent outline-none cursor-pointer"
-          >
-            {members.map((m) => (
-              <option key={m.id} value={m.name}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          {sessionUser?.role === "admin" ? (
+            <select
+              value={activeMemberName}
+              onChange={(e) => setCurrentMember(e.target.value)}
+              className="text-[13px] font-extrabold text-[#8B5CF6] bg-transparent outline-none cursor-pointer"
+            >
+              {members.map((m) => (
+                <option key={m.id} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-[13px] font-black text-[#8B5CF6]">
+              {activeMemberName}
+            </span>
+          )}
         </div>
       </div>
 

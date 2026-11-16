@@ -48,7 +48,7 @@ export default function MemberAttendancePage() {
     checkOutMember,
   } = useCRM();
 
-  const activeMemberName = currentMember && currentMember !== "all" ? currentMember : "Rahim";
+  const activeMemberName = sessionUser?.name || (currentMember && currentMember !== "all" ? currentMember : "Rahim");
 
   const [todayStr, setTodayStr] = useState("");
   const [liveTimeStr, setLiveTimeStr] = useState("");
