@@ -168,7 +168,7 @@ export type AttendanceRecord = {
   checkOutTime?: string;
   checkOutTimestamp?: number;
   workingMinutes?: number;
-  status: "On Time" | "Late" | "Checked Out";
+  status: "On Time" | "Late" | "Checked Out" | "Missing Checkout";
   verifiedVia: string;
   deviceId: string;
   lateReason?: string;
@@ -1807,11 +1807,12 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     addActivity(`${memberName} checked out at ${timeString}`, "status");
   };
 
-  // Auto Check-Out after 7:30 PM (19:30) for any Member / Coordinator who didn't manually check out
+  // Expire Check-Out after 7:30 PM (19:30) for any Member / Coordinator who didn't manually check out.
+  // Rule: If they didn't check out by 7:30 PM, no checkout time and NO working calculation is recorded! Only check-in is shown.
   useEffect(() => {
     if (!isHydrated) return;
 
-    const runAutoCheckoutAfter730Pm = () => {
+    const runExpireCheckoutAfter730Pm = () => {
       const now = new Date();
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
@@ -1828,23 +1829,17 @@ export function CRMProvider({ children }: { children: ReactNode }) {
 
             if (isTodayUnclosed || isPastDayUnclosed) {
               changed = true;
-              // Check out time is fixed at 07:30:00 PM for automatic checkout
-              const autoCheckoutTimeStr = "07:30:00 PM";
-              const [rYear, rMonth, rDay] = r.date.split("-").map(Number);
-              const checkoutDate = new Date(rYear, rMonth - 1, rDay, 19, 30, 0, 0);
-              const checkoutTs = checkoutDate.getTime();
-              const diffMins = Math.max(1, Math.round((checkoutTs - r.checkInTimestamp) / 60000));
-
-              const autoRecord: AttendanceRecord = {
+              // Rule: No checkout time and NO calculation (workingMinutes = 0 or undefined). Only checkin is retained!
+              const unclosedRecord: AttendanceRecord = {
                 ...r,
-                checkOutTime: autoCheckoutTimeStr,
-                checkOutTimestamp: checkoutTs,
-                workingMinutes: diffMins,
-                status: "Checked Out",
+                checkOutTime: undefined,
+                checkOutTimestamp: undefined,
+                workingMinutes: 0,
+                status: "Missing Checkout",
               };
-              upsertAttendanceRecordDb(autoRecord);
-              addActivity(`${r.member} auto checked out at 07:30 PM (${r.date})`, "status");
-              return autoRecord;
+              upsertAttendanceRecordDb(unclosedRecord);
+              addActivity(`${r.member} did not check out by 7:30 PM (${r.date}) — marked as Missing Checkout (0 hrs)`, "status");
+              return unclosedRecord;
             }
           }
           return r;
@@ -1863,10 +1858,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
     };
 
     // Check on initial load
-    runAutoCheckoutAfter730Pm();
+    runExpireCheckoutAfter730Pm();
     // And run periodic check every minute
-    const autoCheckoutInterval = setInterval(runAutoCheckoutAfter730Pm, 60000);
-    return () => clearInterval(autoCheckoutInterval);
+    const expireCheckoutInterval = setInterval(runExpireCheckoutAfter730Pm, 60000);
+    return () => clearInterval(expireCheckoutInterval);
   }, [isHydrated]);
 
   const adminUpdateAttendance = (id: string, updated: Partial<AttendanceRecord>) => {

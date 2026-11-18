@@ -17,6 +17,7 @@ import {
   Navigation,
   MessageCircle,
   AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import MemberSendReportModal from "@/components/MemberSendReportModal";
 
@@ -268,6 +269,9 @@ export default function MemberAttendancePage() {
 
   const getLiveElapsedDisplay = () => {
     if (!todayRecord) return { text: "0h 00m", percent: 0 };
+    if (todayRecord.status === "Missing Checkout") {
+      return { text: "0h 00m", percent: 0 };
+    }
     const inMs = parseTimeToMs(todayRecord.date, todayRecord.checkInTime) || todayRecord.checkInTimestamp;
     if (todayRecord.checkOutTime) {
       const outMs = parseTimeToMs(todayRecord.date, todayRecord.checkOutTime) || todayRecord.checkOutTimestamp;
@@ -426,11 +430,17 @@ export default function MemberAttendancePage() {
           <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between min-w-0">
             <span className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase truncate">Check-Out</span>
             <div className="text-lg sm:text-2xl font-black text-gray-900 my-1 sm:my-2 truncate">
-              {todayRecord?.checkOutTime ? todayRecord.checkOutTime.replace(/:\d{2}\s/, " ") : "— : —"}
+              {todayRecord?.checkOutTime
+                ? todayRecord.checkOutTime.replace(/:\d{2}\s/, " ")
+                : todayRecord?.status === "Missing Checkout"
+                ? "Not Done"
+                : "— : —"}
             </div>
             <div className="text-[10px] sm:text-[11px] font-semibold text-gray-500 truncate">
               {todayRecord?.checkOutTime
                 ? "Shift completed"
+                : todayRecord?.status === "Missing Checkout"
+                ? "Past 7:30 PM (No Checkout)"
                 : todayRecord
                 ? "In office"
                 : "Not checked out"}
@@ -455,8 +465,24 @@ export default function MemberAttendancePage() {
 
         {/* Single Clean Action Button */}
         <div>
-          {/* If member has checked in and needs to check out: ALWAYS ALLOW CHECKOUT (No WiFi or GPS connection required!) */}
-          {todayRecord && !todayRecord.checkOutTime ? (
+          {/* If member has checked in and missed checkout by 7:30 PM */}
+          {todayRecord && !todayRecord.checkOutTime && todayRecord.status === "Missing Checkout" ? (
+            <div className="space-y-3">
+              <div className="w-full py-3.5 bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 text-center px-4">
+                <AlertCircle size={18} className="text-rose-600 shrink-0" />
+                <span>Check-Out Expired (Past 7:30 PM). No working hours recorded as per office rules.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                title="Send Daily Work Report to Sir (8240017974)"
+              >
+                <MessageCircle size={18} />
+                <span>Send Today&apos;s Work Report to Sir (8240017974)</span>
+              </button>
+            </div>
+          ) : todayRecord && !todayRecord.checkOutTime ? (
             <div className="space-y-3">
               <button
                 type="button"
@@ -634,12 +660,19 @@ export default function MemberAttendancePage() {
                     <td className="py-3.5 px-4 font-bold text-gray-700">
                       {rec.checkOutTime ? (
                         rec.checkOutTime.replace(/:\d{2}\s/, " ")
+                      ) : rec.status === "Missing Checkout" ? (
+                        <span className="text-rose-600 font-extrabold text-[11px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                          Not Done
+                        </span>
                       ) : (
                         <span className="text-blue-600 font-bold">Working...</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4 font-bold text-gray-800">
                       {(() => {
+                        if (rec.status === "Missing Checkout") {
+                          return <span className="text-gray-400 font-semibold">—</span>;
+                        }
                         if (rec.checkOutTime) {
                           if (rec.workingMinutes !== undefined) return formatMinutes(rec.workingMinutes);
                           const inMs = rec.checkInTimestamp || parseTimeToMs(rec.date, rec.checkInTime);
@@ -670,6 +703,8 @@ export default function MemberAttendancePage() {
                             ? "bg-amber-100 text-amber-800"
                             : rec.status === "Checked Out"
                             ? "bg-gray-100 text-gray-700"
+                            : rec.status === "Missing Checkout"
+                            ? "bg-rose-100 text-rose-800 border border-rose-200"
                             : "bg-emerald-100 text-emerald-700"
                         }`}
                       >

@@ -186,8 +186,8 @@ export default function AdminAttendancePage() {
       "Member Name": r.member || "—",
       "Date": r.date || "—",
       "Check-In Time": r.checkInTime || "—",
-      "Check-Out Time": r.checkOutTime || "—",
-      "Total Hours": formatMinutes(r.workingMinutes),
+      "Check-Out Time": r.checkOutTime ? r.checkOutTime : (r.status === "Missing Checkout" ? "Not Checked Out" : "—"),
+      "Total Hours": r.status === "Missing Checkout" || !r.checkOutTime ? "—" : formatMinutes(r.workingMinutes),
       "Verified Via": r.verifiedVia || "—",
       "Status": r.status || "—",
       "Late Reason": r.lateReason || "—",
@@ -788,12 +788,19 @@ export default function AdminAttendancePage() {
                             />
                           ) : rec.checkOutTime ? (
                             rec.checkOutTime.replace(/:\d{2}\s/, " ")
+                          ) : rec.status === "Missing Checkout" ? (
+                            <span className="text-rose-600 font-extrabold text-[11px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                              Not Checked Out
+                            </span>
                           ) : (
                             <span className="text-blue-600 font-bold">Working...</span>
                           )}
                         </td>
                         <td className="py-3.5 px-4 font-bold text-gray-800">
                           {(() => {
+                            if (rec.status === "Missing Checkout") {
+                              return <span className="text-gray-400 font-semibold">—</span>;
+                            }
                             if (rec.checkOutTime) {
                               if (rec.workingMinutes !== undefined) return formatMinutes(rec.workingMinutes);
                               const inMs = parseTimeToMs(rec.date, rec.checkInTime) || rec.checkInTimestamp;
@@ -833,6 +840,7 @@ export default function AdminAttendancePage() {
                               <option value="On Time">On Time</option>
                               <option value="Late">Late</option>
                               <option value="Checked Out">Checked Out</option>
+                              <option value="Missing Checkout">Missing Checkout</option>
                             </select>
                           ) : (
                             <span
@@ -841,6 +849,8 @@ export default function AdminAttendancePage() {
                                   ? "bg-amber-100 text-amber-800"
                                   : rec.status === "Checked Out"
                                   ? "bg-gray-100 text-gray-700"
+                                  : rec.status === "Missing Checkout"
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200"
                                   : "bg-emerald-100 text-emerald-700"
                               }`}
                             >
