@@ -658,19 +658,29 @@ export default function MemberAttendancePage() {
                       {rec.checkInTime.replace(/:\d{2}\s/, " ")}
                     </td>
                     <td className="py-3.5 px-4 font-bold text-gray-700">
-                      {rec.checkOutTime ? (
-                        rec.checkOutTime.replace(/:\d{2}\s/, " ")
-                      ) : rec.status === "Missing Checkout" ? (
-                        <span className="text-rose-600 font-extrabold text-[11px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
-                          Not Done
-                        </span>
-                      ) : (
-                        <span className="text-blue-600 font-bold">Working...</span>
-                      )}
+                      {(() => {
+                        const todayStr = getLocalDateString();
+                        const isMissingCheckout = rec.status === "Missing Checkout" || (!rec.checkOutTime && rec.date < todayStr);
+
+                        if (rec.checkOutTime) {
+                          return rec.checkOutTime.replace(/:\d{2}\s/, " ");
+                        }
+                        if (isMissingCheckout) {
+                          return (
+                            <span className="text-rose-600 font-extrabold text-[11px] bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                              Not Checked Out
+                            </span>
+                          );
+                        }
+                        return <span className="text-blue-600 font-bold">Working...</span>;
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 font-bold text-gray-800">
                       {(() => {
-                        if (rec.status === "Missing Checkout") {
+                        const todayStr = getLocalDateString();
+                        const isMissingCheckout = rec.status === "Missing Checkout" || (!rec.checkOutTime && rec.date < todayStr);
+
+                        if (isMissingCheckout) {
                           return <span className="text-gray-400 font-semibold">—</span>;
                         }
                         if (rec.checkOutTime) {
@@ -697,19 +707,25 @@ export default function MemberAttendancePage() {
                     </td>
                     <td className="py-3.5 px-4 text-gray-500 font-semibold">{rec.verifiedVia}</td>
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
-                          rec.status === "Late"
-                            ? "bg-amber-100 text-amber-800"
-                            : rec.status === "Checked Out"
-                            ? "bg-gray-100 text-gray-700"
-                            : rec.status === "Missing Checkout"
-                            ? "bg-rose-100 text-rose-800 border border-rose-200"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}
-                      >
-                        {rec.status}
-                      </span>
+                      {(() => {
+                        const todayStr = getLocalDateString();
+                        const displayStatus = (!rec.checkOutTime && rec.date < todayStr) ? "Missing Checkout" : rec.status;
+                        return (
+                          <span
+                            className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                              displayStatus === "Late"
+                                ? "bg-amber-100 text-amber-800"
+                                : displayStatus === "Checked Out"
+                                ? "bg-gray-100 text-gray-700"
+                                : displayStatus === "Missing Checkout"
+                                ? "bg-rose-100 text-rose-800 border border-rose-200"
+                                : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {displayStatus}
+                          </span>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))

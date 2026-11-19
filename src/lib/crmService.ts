@@ -249,15 +249,16 @@ export async function upsertAttendanceRecordDb(rec: AttendanceRecord) {
       .maybeSingle();
 
     if (existing && existing.check_in_time) {
-      // Record already exists for today! Keep original checkInTime and status locked!
+      // Record already exists for today!
       const isCheckingOut = Boolean(rec.checkOutTime);
+      const isMissingCheckout = rec.status === "Missing Checkout";
       const { error } = await supabase
         .from("attendance_records")
         .update({
           check_out_time: rec.checkOutTime || null,
           check_out_timestamp: rec.checkOutTimestamp || null,
-          working_minutes: rec.workingMinutes || null,
-          status: isCheckingOut ? "Checked Out" : existing.status,
+          working_minutes: rec.workingMinutes !== undefined ? rec.workingMinutes : null,
+          status: isCheckingOut ? "Checked Out" : isMissingCheckout ? "Missing Checkout" : existing.status,
           late_reason: rec.lateReason || null,
           admin_note: rec.adminNote || null,
         })

@@ -603,6 +603,36 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Normalizes an attendance record:
+ * If a record has no checkOutTime and its date is in the past, OR if it's today and past 7:30 PM (19:30),
+ * it is considered "Missing Checkout" (0 working minutes, no calculation, status "Missing Checkout").
+ */
+export function normalizeAttendanceRecord(r: AttendanceRecord, now: Date = new Date()): AttendanceRecord {
+  if (!r) return r;
+  if (r.checkOutTime) {
+    return r;
+  }
+  const todayStr = getLocalDateString(now);
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const isPast730Pm = currentHour > 19 || (currentHour === 19 && currentMinute >= 30);
+
+  const isPastDayUnclosed = r.date < todayStr;
+  const isTodayPast730Pm = r.date === todayStr && isPast730Pm;
+
+  if (isPastDayUnclosed || isTodayPast730Pm) {
+    return {
+      ...r,
+      checkOutTime: undefined,
+      checkOutTimestamp: undefined,
+      workingMinutes: 0,
+      status: "Missing Checkout",
+    };
+  }
+  return r;
+}
+
 export function isTaskOnDate(
   t: { taskType?: string; startDate?: string; endDate?: string; status?: string },
   dateStr: string,
@@ -886,7 +916,9 @@ export function CRMProvider({ children }: { children: ReactNode }) {
           const parsed: AttendanceRecord[] = JSON.parse(savedAttRecords);
           const seen = new Set<string>();
           const deduped: AttendanceRecord[] = [];
-          for (const r of parsed) {
+          const now = new Date();
+          for (const raw of parsed) {
+            const r = normalizeAttendanceRecord(raw, now);
             const key = `${(r.member || "").trim().toLowerCase()}_${r.date}`;
             if (!seen.has(key)) {
               seen.add(key);
@@ -1040,8 +1072,10 @@ export function CRMProvider({ children }: { children: ReactNode }) {
             const seen = new Set<string>();
             const deduped: AttendanceRecord[] = [];
             const duplicateIds: string[] = [];
+            const now = new Date();
 
-            for (const r of dbAttRecs) {
+            for (const raw of dbAttRecs) {
+              const r = normalizeAttendanceRecord(raw, now);
               const key = `${(r.member || "").trim().toLowerCase()}_${r.date}`;
               if (!seen.has(key)) {
                 seen.add(key);
@@ -1056,6 +1090,16 @@ export function CRMProvider({ children }: { children: ReactNode }) {
               localStorage.setItem(STORAGE_KEYS.ATTENDANCE_RECORDS, JSON.stringify(deduped));
             } catch (e) {
               console.error(e);
+            }
+
+            // Sync unclosed records that expired past 7:30 PM to Supabase
+            for (const r of deduped) {
+              if (r.status === "Missing Checkout") {
+                const rawMatch = dbAttRecs.find((orig) => orig.id === r.id);
+                if (rawMatch && rawMatch.status !== "Missing Checkout") {
+                  upsertAttendanceRecordDb(r);
+                }
+              }
             }
 
             // Automatically purge duplicate entries from Supabase in background
